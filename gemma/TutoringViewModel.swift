@@ -45,14 +45,7 @@ class TutoringViewModel {
             self.sendMessage(trimmed, imageData: imageData)
         }
         
-        // When wake word "Gemma" is detected, also check whiteboard
-        speechService.onWakeWordDetected = { [weak self] in
-            // Wake word will trigger startListening in SpeechService
-            // The whiteboard will be included when the transcript comes through
-        }
-        
-        // Start wake word listening
-        speechService.startWakeWordListening()
+
     }
     
     // MARK: - Message Handling
@@ -111,6 +104,7 @@ class TutoringViewModel {
         Task { @MainActor in
             do {
                 let response = try await performAPICall(prompt: prompt, imageData: imageData)
+                
                 let aiMessage = ChatMessage(content: response, isUser: false)
                 messages.append(aiMessage)
                 currentSession.messages = messages

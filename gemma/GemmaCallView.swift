@@ -84,7 +84,6 @@ struct GemmaCallView: View {
     private var statusDotColor: Color {
         switch speechService.speechState {
         case .idle: .gray
-        case .waitingForWakeWord: .green
         case .listening: .blue
         case .processing: .orange
         case .speaking: .green
@@ -99,7 +98,7 @@ struct GemmaCallView: View {
     
     private var transcriptOverlay: some View {
         Group {
-            if !speechService.liveTranscript.isEmpty || speechService.speechState == .listening || speechService.speechState == .waitingForWakeWord {
+            if !speechService.liveTranscript.isEmpty || speechService.speechState == .listening {
                 HStack(spacing: 8) {
                     // Indicator
                     Circle()
@@ -126,7 +125,6 @@ struct GemmaCallView: View {
     
     private var transcriptIndicatorColor: Color {
         switch speechService.speechState {
-        case .waitingForWakeWord: .green
         case .listening: .blue
         case .speaking: .green
         default: .secondary
@@ -134,9 +132,6 @@ struct GemmaCallView: View {
     }
     
     private var transcriptDisplayText: String {
-        if speechService.speechState == .waitingForWakeWord {
-            return "Say \"Gemma\" to start..."
-        }
         if speechService.liveTranscript.isEmpty && speechService.speechState == .listening {
             return "Listening..."
         }
@@ -245,7 +240,6 @@ struct GemmaCallView: View {
     private var micButtonColor: Color {
         switch speechService.speechState {
         case .idle: .purple
-        case .waitingForWakeWord: .purple
         case .listening: .red
         case .processing: .gray
         case .speaking: .orange
@@ -255,7 +249,6 @@ struct GemmaCallView: View {
     private var micIcon: String {
         switch speechService.speechState {
         case .idle: "mic.fill"
-        case .waitingForWakeWord: "mic.fill"
         case .listening: "mic.fill"
         case .processing: "ellipsis"
         case .speaking: "speaker.wave.2.fill"
@@ -264,9 +257,7 @@ struct GemmaCallView: View {
     
     private func handleMicTap() {
         switch speechService.speechState {
-        case .idle, .waitingForWakeWord:
-            // Manual tap bypasses wake word — start listening directly
-            speechService.stopWakeWordListening()
+        case .idle:
             speechService.startListening()
         case .listening:
             speechService.stopListening()

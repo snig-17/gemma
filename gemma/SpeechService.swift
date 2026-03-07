@@ -12,7 +12,6 @@ import Accelerate
 
 nonisolated enum SpeechState: Equatable, Sendable {
     case idle
-    case waitingForWakeWord
     case listening
     case processing
     case speaking
@@ -28,12 +27,10 @@ class SpeechService: NSObject {
     var liveTranscript: String = ""
     var audioLevel: Float = 0.0
     var errorMessage: String?
-    var isWakeWordEnabled = false
     
     // Callbacks
     var onFinalTranscript: ((String) -> Void)?
     var onSpeechFinished: (() -> Void)?
-    var onWakeWordDetected: (() -> Void)?
     
     // Google TTS API key (shared with Gemini)
     var apiKey: String = ""
@@ -51,9 +48,6 @@ class SpeechService: NSObject {
     private var silenceTimer: Timer?
     private let silenceThreshold: TimeInterval = 2.0
     private var hasFinished = false
-    
-    // Wake word
-    private let wakeWord = "gemma"
     
     override init() {
         super.init()
@@ -82,115 +76,6 @@ class SpeechService: NSObject {
     
     var hasPermissions: Bool {
         SFSpeechRecognizer.authorizationStatus() == .authorized
-    }
-    
-    // MARK: - Wake Word Listening
-    
-    func startWakeWordListening() {
-        guard !isWakeWordEnabled else { return }
-        isWakeWordEnabled = true
-        beginWakeWordRecognition()
-    }
-    
-    func stopWakeWordListening() {
-        isWakeWordEnabled = false
-        if speechState == .waitingForWakeWord {
-            stopAudioEngine()
-            speechState = .idle
-        }
-    }
-    
-    private func beginWakeWordRecognition() {
-        guard isWakeWordEnabled,
-              speechState == .idle || speechState == .waitingForWakeWord else { return }
-        
-        // Clean up any existing audio engine state
-        stopAudioEngine()
-        
-        guard let speechRecognizer, speechRecognizer.isAvailable else { return }
-        
-        do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothA2DP])
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-        } catch {
-            return
-        }
-        
-        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-        guard let recognitionRequest else { return }
-        recognitionRequest.shouldReportPartialResults = true
-        
-        let inputNode = audioEngine.inputNode
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
-        
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
-            self?.recognitionRequest?.append(buffer)
-        }
-        
-        audioEngine.prepare()
-        do {
-            try audioEngine.start()
-        } catch {
-            return
-        }
-        
-        speechState = .waitingForWakeWord
-        liveTranscript = ""
-        
-        recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
-            guard let self else { return }
-            
-            if let result {
-                Task { @MainActor in
-                    let text = result.bestTranscription.formattedString.lowercased()
-                    
-                    // Check for wake word
-                    if text.contains(self.wakeWord) {
-                        // Wake word detected — stop this recognition and switch to active listening
-                        self.stopAudioEngine()
-                        
-                        // Extract anything said after "gemma" as the initial prompt
-                        let components = text.components(separatedBy: self.wakeWord)
-                        let afterWakeWord = components.last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                        
-                        self.onWakeWordDetected?()
-                        
-                        if afterWakeWord.isEmpty {
-                            // Just said "Gemma" — start listening for the actual question
-                            self.startListening()
-                        } else {
-                            // Said "Gemma, [question]" — process the question directly
-                            self.speechState = .processing
-                            self.onFinalTranscript?(afterWakeWord)
-                        }
-                        return
-                    }
-                    
-                    // If recognition ends without wake word, restart
-                    if result.isFinal {
-                        self.stopAudioEngine()
-                        // Brief delay before restarting
-                        Task { @MainActor in
-                            try? await Task.sleep(for: .milliseconds(300))
-                            self.beginWakeWordRecognition()
-                        }
-                    }
-                }
-            }
-            
-            if error != nil {
-                Task { @MainActor in
-                    // Only handle if still in wake word state
-                    guard self.speechState == .waitingForWakeWord else { return }
-                    self.stopAudioEngine()
-                    if self.isWakeWordEnabled {
-                        try? await Task.sleep(for: .seconds(1))
-                        self.beginWakeWordRecognition()
-                    }
-                }
-            }
-        }
     }
     
     // MARK: - Active Listening (Speech-to-Text)
@@ -304,10 +189,6 @@ class SpeechService: NSObject {
             onFinalTranscript?(transcript)
         } else {
             speechState = .idle
-            // Resume wake word listening
-            if isWakeWordEnabled {
-                beginWakeWordRecognition()
-            }
         }
     }
     
@@ -555,14 +436,6 @@ class SpeechService: NSObject {
         audioLevel = 0
         speakingAnimationTimer?.invalidate()
         onSpeechFinished?()
-        
-        // Resume wake word listening
-        if isWakeWordEnabled {
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(200))
-                self.beginWakeWordRecognition()
-            }
-        }
     }
 }
 
