@@ -22,7 +22,7 @@ class TutoringViewModel {
     var subject: Subject
     
     // Gemini API configuration
-    private let apiKey = "AIzaSyDB114CtnmRG1Y5plsib-z6IFHgu0B2U4E"
+    private let apiKey = Secrets.geminiAPIKey
     private let apiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent"
     
     init(subject: Subject = Subject(name: "General")) {

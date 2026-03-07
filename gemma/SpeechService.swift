@@ -104,9 +104,8 @@ class SpeechService: NSObject {
         guard isWakeWordEnabled,
               speechState == .idle || speechState == .waitingForWakeWord else { return }
         
-        // Cancel any existing task
-        recognitionTask?.cancel()
-        recognitionTask = nil
+        // Clean up any existing audio engine state
+        stopAudioEngine()
         
         guard let speechRecognizer, speechRecognizer.isAvailable else { return }
         
@@ -201,14 +200,10 @@ class SpeechService: NSObject {
             stopSpeaking()
         }
         
-        // Stop wake word if running
-        if speechState == .waitingForWakeWord {
-            stopAudioEngine()
-        }
+        // Clean up any existing audio engine state (wake word or previous listen)
+        stopAudioEngine()
         
         hasFinished = false
-        recognitionTask?.cancel()
-        recognitionTask = nil
         
         guard let speechRecognizer, speechRecognizer.isAvailable else {
             errorMessage = "Speech recognition is not available."
@@ -323,8 +318,9 @@ class SpeechService: NSObject {
         
         if audioEngine.isRunning {
             audioEngine.stop()
-            audioEngine.inputNode.removeTap(onBus: 0)
         }
+        // Always remove tap — it can exist even if engine isn't running
+        audioEngine.inputNode.removeTap(onBus: 0)
     }
     
     private func resetSilenceTimer() {
@@ -344,10 +340,7 @@ class SpeechService: NSObject {
         liveTranscript = text
         
         Task { @MainActor in
-            // Brief delay to let audio session fully release from recording mode
-            try? await Task.sleep(for: .milliseconds(200))
-            
-            // Configure audio session for playback
+            // Configure audio session for playback immediately (no delay)
             do {
                 let audioSession = AVAudioSession.sharedInstance()
                 try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothA2DP])
@@ -372,7 +365,7 @@ class SpeechService: NSObject {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // Use LINEAR16 (WAV) — AVAudioPlayer handles it natively without codec issues
+        // Try MP3 first (much smaller payload = faster download), fall back to LINEAR16
         let body: [String: Any] = [
             "input": ["text": text],
             "voice": [
@@ -381,8 +374,7 @@ class SpeechService: NSObject {
                 "ssmlGender": "FEMALE"
             ],
             "audioConfig": [
-                "audioEncoding": "LINEAR16",
-                "sampleRateHertz": 24000,
+                "audioEncoding": "MP3",
                 "speakingRate": 1.0,
                 "pitch": 0.0
             ]
@@ -404,27 +396,82 @@ class SpeechService: NSObject {
             
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let audioContent = json["audioContent"] as? String,
-                  let rawPCM = Data(base64Encoded: audioContent) else {
+                  let audioData = Data(base64Encoded: audioContent) else {
                 if let raw = String(data: data, encoding: .utf8) {
                     print("[Google TTS] Parse error: \(raw.prefix(300))")
                 }
                 return false
             }
             
-            // LINEAR16 returns raw PCM — wrap in a WAV header for AVAudioPlayer
+            // Try playing MP3 directly
+            do {
+                audioPlayer = try AVAudioPlayer(data: audioData)
+            } catch {
+                print("[Google TTS] MP3 decode failed, retrying with LINEAR16...")
+                return await speakWithGoogleTTSLinear16(text)
+            }
+            
+            audioPlayer?.delegate = self
+            audioPlayer?.volume = 1.0
+            audioPlayer?.prepareToPlay()
+            audioPlayer?.play()
+            
+            startSpeakingAnimation()
+            
+            print("[Google TTS] Playing \(audioData.count) bytes of MP3 audio")
+            return true
+        } catch {
+            print("[Google TTS] Failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+    
+    /// Fallback: Use LINEAR16 encoding if MP3 fails
+    private func speakWithGoogleTTSLinear16(_ text: String) async -> Bool {
+        let url = URL(string: "https://texttospeech.googleapis.com/v1/text:synthesize?key=\(apiKey)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "input": ["text": text],
+            "voice": [
+                "languageCode": "en-US",
+                "name": "en-US-Journey-F",
+                "ssmlGender": "FEMALE"
+            ],
+            "audioConfig": [
+                "audioEncoding": "LINEAR16",
+                "sampleRateHertz": 24000,
+                "speakingRate": 1.0,
+                "pitch": 0.0
+            ]
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let (data, _) = try await URLSession.shared.data(for: request)
+            
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let audioContent = json["audioContent"] as? String,
+                  let rawPCM = Data(base64Encoded: audioContent) else {
+                return false
+            }
+            
             let wavData = createWAVData(from: rawPCM, sampleRate: 24000, channels: 1, bitsPerSample: 16)
             
             audioPlayer = try AVAudioPlayer(data: wavData)
             audioPlayer?.delegate = self
             audioPlayer?.volume = 1.0
+            audioPlayer?.prepareToPlay()
             audioPlayer?.play()
             
             startSpeakingAnimation()
             
-            print("[Google TTS] Playing \(wavData.count) bytes of audio")
+            print("[Google TTS] Playing \(wavData.count) bytes of LINEAR16 audio (fallback)")
             return true
         } catch {
-            print("[Google TTS] Failed: \(error.localizedDescription)")
+            print("[Google TTS LINEAR16] Failed: \(error.localizedDescription)")
             return false
         }
     }
@@ -512,7 +559,7 @@ class SpeechService: NSObject {
         // Resume wake word listening
         if isWakeWordEnabled {
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(500))
+                try? await Task.sleep(for: .milliseconds(200))
                 self.beginWakeWordRecognition()
             }
         }
