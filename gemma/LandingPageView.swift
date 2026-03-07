@@ -14,6 +14,9 @@ struct LandingPageView: View {
     @State private var newSubjectName = ""
     @State private var showEditName = false
     @State private var editedName = ""
+    @State private var showAvatarBuilder = false
+    @State private var subjectToDelete: Subject?
+    @State private var showDeleteConfirm = false
     
     var body: some View {
         GeometryReader { geo in
@@ -56,6 +59,35 @@ struct LandingPageView: View {
                 onSaveProfile()
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .sheet(isPresented: $showAvatarBuilder) {
+            NavigationStack {
+                AvatarBuilderView(avatar: $profile.avatar) {
+                    showAvatarBuilder = false
+                    onSaveProfile()
+                }
+                .navigationTitle("Edit Avatar")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Cancel") {
+                            showAvatarBuilder = false
+                        }
+                    }
+                }
+            }
+        }
+        .alert("Delete Subject?", isPresented: $showDeleteConfirm) {
+            Button("Delete Forever", role: .destructive) {
+                if let subject = subjectToDelete,
+                   let index = profile.subjects.firstIndex(where: { $0.id == subject.id }) {
+                    profile.subjects.remove(at: index)
+                    onSaveProfile()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will permanently remove this subject and its stats. This cannot be undone.")
         }
     }
     
@@ -100,6 +132,14 @@ struct LandingPageView: View {
                         SubjectCard(subject: subject, gemColor: profile.gemTier.color) {
                             onStartSession(subject)
                         }
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                subjectToDelete = subject
+                                showDeleteConfirm = true
+                            } label: {
+                                Label("Delete Forever", systemImage: "trash")
+                            }
+                        }
                     }
                     
                     // Add subject card
@@ -142,21 +182,17 @@ struct LandingPageView: View {
     
     private var profileCard: some View {
         VStack(spacing: 16) {
-            // Avatar
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [profile.gemTier.color.opacity(0.6), profile.gemTier.color],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 90, height: 90)
-                
-                Image(systemName: "person.fill")
-                    .font(.system(size: 36))
-                    .foregroundStyle(.white)
+            // Avatar (tap to customise)
+            Button {
+                showAvatarBuilder = true
+            } label: {
+                AvatarView(config: profile.avatar, size: 90)
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.purple)
+                            .background(Circle().fill(.white).padding(2))
+                    }
             }
             
             // Name
@@ -200,6 +236,14 @@ struct LandingPageView: View {
                 StatItem(value: "\(profile.totalMessages)", label: "Messages")
                 StatItem(value: "\(profile.subjects.reduce(0) { $0 + $1.sessionCount })", label: "Sessions")
                 StatItem(value: "\(profile.streak)", label: "Streak")
+            }
+            
+            // Subject bar chart
+            if profile.subjects.contains(where: { $0.totalMessages > 0 }) {
+                Divider()
+                    .padding(.horizontal, 24)
+                
+                SubjectBarChart(subjects: profile.subjects)
             }
         }
         .padding(24)
@@ -349,6 +393,51 @@ struct StatItem: View {
             Text(label)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+// MARK: - Subject Bar Chart
+
+struct SubjectBarChart: View {
+    let subjects: [Subject]
+    
+    private var maxMessages: Int {
+        subjects.map(\.totalMessages).max() ?? 1
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Study Time")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            
+            ForEach(subjects.filter({ $0.totalMessages > 0 })) { subject in
+                HStack(spacing: 8) {
+                    Text(subject.name)
+                        .font(.caption2)
+                        .frame(width: 60, alignment: .trailing)
+                    
+                    GeometryReader { geo in
+                        let fraction = maxMessages > 0 ? CGFloat(subject.totalMessages) / CGFloat(maxMessages) : 0
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(
+                                LinearGradient(
+                                    colors: [.purple, .blue],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: max(geo.size.width * fraction, 4))
+                    }
+                    .frame(height: 12)
+                    
+                    Text("\(subject.totalMessages)")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, alignment: .leading)
+                }
+            }
         }
     }
 }

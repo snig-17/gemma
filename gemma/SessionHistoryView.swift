@@ -12,6 +12,9 @@ struct SessionHistoryView: View {
     let onNew: () -> Void
     let onDelete: (IndexSet) -> Void
     
+    @State private var indexSetToDelete: IndexSet?
+    @State private var showDeleteConfirm = false
+    
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -62,10 +65,25 @@ struct SessionHistoryView: View {
                             : Color.clear
                         )
                     }
-                    .onDelete(perform: onDelete)
+                    .onDelete { offsets in
+                        indexSetToDelete = offsets
+                        showDeleteConfirm = true
+                    }
                 }
                 .listStyle(.plain)
             }
+        }
+        .alert("Delete Forever?", isPresented: $showDeleteConfirm) {
+            Button("Delete Forever", role: .destructive) {
+                if let offsets = indexSetToDelete {
+                    onDelete(offsets)
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                indexSetToDelete = nil
+            }
+        } message: {
+            Text("This will permanently delete this session. This cannot be undone.")
         }
     }
 }

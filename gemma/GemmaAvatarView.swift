@@ -110,6 +110,7 @@ struct GemmaAvatarView: View {
     private var stateColor: Color {
         switch speechState {
         case .idle: .purple
+        case .waitingForWakeWord: .green
         case .listening: .blue
         case .processing: .orange
         case .speaking: .green
@@ -119,6 +120,7 @@ struct GemmaAvatarView: View {
     private var stateIcon: String {
         switch speechState {
         case .idle: "sparkle"
+        case .waitingForWakeWord: "ear"
         case .listening: "waveform"
         case .processing: "ellipsis"
         case .speaking: "sparkle"
@@ -128,6 +130,7 @@ struct GemmaAvatarView: View {
     private var statusText: String {
         switch speechState {
         case .idle: "Tap the mic to talk"
+        case .waitingForWakeWord: "Say \"Gemma\" to start"
         case .listening: "Listening..."
         case .processing: "Thinking..."
         case .speaking: "Speaking..."

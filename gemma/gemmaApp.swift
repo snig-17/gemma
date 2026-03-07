@@ -23,7 +23,12 @@ struct RootView: View {
     @State private var activeSubject: Subject?
     
     var body: some View {
-        if let subject = activeSubject {
+        if !profile.hasCompletedOnboarding {
+            OnboardingView(profile: $profile) {
+                saveProfile()
+            }
+            .transition(.move(edge: .trailing))
+        } else if let subject = activeSubject {
             ContentView(
                 subject: subject,
                 profile: $profile,
@@ -81,3 +86,4 @@ struct RootView: View {
         }
     }
 }
+

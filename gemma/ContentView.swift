@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var viewModel: TutoringViewModel
     @State private var showSessionSheet = false
     @State private var selectedTab = 0
+    @State private var showFinishNoteAlert = false
+    @State private var showSaveOnLeaveAlert = false
     
     init(subject: Subject, profile: Binding<UserProfile>, onEndSession: @escaping (Subject) -> Void) {
         self.subject = subject
@@ -66,6 +68,29 @@ struct ContentView: View {
                 }
             }
             .presentationDetents([.medium, .large])
+        }
+        .alert("Save Note?", isPresented: $showFinishNoteAlert) {
+            Button("Yes") {
+                viewModel.finishNote(save: true)
+            }
+            Button("No", role: .destructive) {
+                viewModel.finishNote(save: false)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Do you want to save your whiteboard before clearing it?")
+        }
+        .alert("Save Note?", isPresented: $showSaveOnLeaveAlert) {
+            Button("Yes") {
+                viewModel.finishNote(save: true)
+                onEndSession(viewModel.updatedSubject)
+            }
+            Button("No", role: .destructive) {
+                onEndSession(viewModel.updatedSubject)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You have unsaved work on the whiteboard. Save before leaving?")
         }
     }
     
@@ -169,10 +194,17 @@ struct ContentView: View {
         WhiteboardView(
             canvasView: $viewModel.canvasView,
             toolPicker: $viewModel.toolPicker,
+            background: $viewModel.whiteboardBackground,
             onClear: {
                 viewModel.clearCanvas()
             },
-            onSnapshot: {}
+            onSnapshot: {},
+            onSave: {
+                viewModel.saveDrawingToSession()
+            },
+            onFinishNote: {
+                showFinishNoteAlert = true
+            }
         )
     }
     
@@ -182,7 +214,11 @@ struct ContentView: View {
         Button {
             viewModel.speechService.stopSpeaking()
             viewModel.speechService.stopListening()
-            onEndSession(viewModel.updatedSubject)
+            if viewModel.canvasHasStrokes {
+                showSaveOnLeaveAlert = true
+            } else {
+                onEndSession(viewModel.updatedSubject)
+            }
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.left")

@@ -16,13 +16,14 @@ class TutoringViewModel {
     var canvasView = PKCanvasView()
     var toolPicker = PKToolPicker()
     var speechService = SpeechService()
+    var whiteboardBackground: WhiteboardBackground = .grid
     
     // Subject context
     var subject: Subject
     
     // Gemini API configuration
-    private let apiKey = "AIzaSyDnJmAlqpfKUxE0Gg7iHVct-DqOdLkm_1I"
-    private let apiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemma-3-27b-it:generateContent"
+    private let apiKey = "AIzaSyDB114CtnmRG1Y5plsib-z6IFHgu0B2U4E"
+    private let apiURL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent"
     
     init(subject: Subject = Subject(name: "General")) {
         self.subject = subject
@@ -31,13 +32,27 @@ class TutoringViewModel {
         self.sessions = [session]
         loadSessions()
         
+        // Share API key with speech service for Google TTS
+        speechService.apiKey = apiKey
+        
         // Wire speech service callbacks
         speechService.onFinalTranscript = { [weak self] transcript in
             guard let self else { return }
             let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
-            self.sendMessage(trimmed)
+            // Include whiteboard snapshot if there's content on it
+            let imageData = self.captureWhiteboardImage()
+            self.sendMessage(trimmed, imageData: imageData)
         }
+        
+        // When wake word "Gemma" is detected, also check whiteboard
+        speechService.onWakeWordDetected = { [weak self] in
+            // Wake word will trigger startListening in SpeechService
+            // The whiteboard will be included when the transcript comes through
+        }
+        
+        // Start wake word listening
+        speechService.startWakeWordListening()
     }
     
     // MARK: - Message Handling
@@ -58,19 +73,40 @@ class TutoringViewModel {
     }
     
     func sendWhiteboardSnapshot() {
-        let renderer = UIGraphicsImageRenderer(size: canvasView.bounds.size)
-        let image = renderer.image { _ in
-            canvasView.drawHierarchy(in: canvasView.bounds, afterScreenUpdates: true)
+        guard let imageData = captureWhiteboardImage() else {
+            sendMessage("Please look at what I've drawn on the whiteboard and help me understand or solve it.")
+            return
         }
-        let imageData = image.jpegData(compressionQuality: 0.8)
-        sendMessage("Please look at what I've drawn on the whiteboard and help me understand or solve it.", imageData: imageData)
+        sendMessage("Please look at what I've drawn/written on the whiteboard and help me understand or solve it. Read any handwritten text carefully.", imageData: imageData)
+    }
+    
+    private func captureWhiteboardImage() -> Data? {
+        let drawing = canvasView.drawing
+        let bounds = drawing.bounds
+        guard !bounds.isEmpty else { return nil }
+        
+        let padding: CGFloat = 40
+        let renderRect = bounds.insetBy(dx: -padding, dy: -padding)
+        let scale: CGFloat = 2.0
+        
+        let renderer = UIGraphicsImageRenderer(size: renderRect.size)
+        let image = renderer.image { ctx in
+            UIColor.white.setFill()
+            ctx.fill(CGRect(origin: .zero, size: renderRect.size))
+            let drawImage = drawing.image(from: renderRect, scale: scale)
+            drawImage.draw(in: CGRect(origin: .zero, size: renderRect.size))
+        }
+        
+        return image.pngData()
     }
     
     // MARK: - Gemma API
     
-    private func callGemma(prompt: String, imageData: Data? = nil) {
+    private func callGemma(prompt: String, imageData: Data? = nil, silent: Bool = false) {
         isLoading = true
-        speechService.setProcessing()
+        if !silent {
+            speechService.setProcessing()
+        }
         
         Task { @MainActor in
             do {
@@ -81,16 +117,19 @@ class TutoringViewModel {
                 currentSession.lastModified = Date()
                 saveSessions()
                 
-                // Speak the response
                 speechService.speak(response)
             } catch {
-                let errorText = "I'm having trouble connecting. Please check your API key and try again."
-                let errorMessage = ChatMessage(
-                    content: errorText + "\n\nError: \(error.localizedDescription)",
-                    isUser: false
-                )
-                messages.append(errorMessage)
-                speechService.speak(errorText)
+                if !silent {
+                    let errorText = "I'm having trouble connecting. Please check your API key and try again."
+                    let errorMessage = ChatMessage(
+                        content: errorText + "\n\nError: \(error.localizedDescription)",
+                        isUser: false
+                    )
+                    messages.append(errorMessage)
+                    speechService.speak(errorText)
+                } else {
+                    print("[Gemma API] Silent whiteboard check failed: \(error.localizedDescription)")
+                }
             }
             isLoading = false
         }
@@ -109,27 +148,50 @@ class TutoringViewModel {
         - Providing encouragement and constructive feedback
         - Using examples and analogies to make concepts accessible
         - When reviewing handwritten work, carefully analyze what's written and provide helpful feedback
+        - You can see the student's whiteboard at all times, so reference their work when relevant
         Keep responses concise. Avoid markdown formatting, bullet points, code blocks, or special characters. Speak naturally as if tutoring in person.
         """
         
-        var parts: [[String: Any]] = [
-            ["text": systemPrompt + "\n\nStudent: " + prompt]
-        ]
+        // Build multi-turn conversation history for context
+        var contents: [[String: Any]] = []
         
+        // System instruction as first user turn
+        contents.append([
+            "role": "user",
+            "parts": [["text": systemPrompt]]
+        ])
+        contents.append([
+            "role": "model",
+            "parts": [["text": "Hello! I'm Gemma, your \(subject.name) tutor. I can see your whiteboard and I'm here to help. What would you like to work on?"]]
+        ])
+        
+        // Add conversation history (keep last 20 messages to avoid token limits)
+        let recentMessages = messages.suffix(20)
+        for msg in recentMessages {
+            contents.append([
+                "role": msg.isUser ? "user" : "model",
+                "parts": [["text": msg.content]]
+            ])
+        }
+        
+        // Add the current prompt with optional image
+        var currentParts: [[String: Any]] = [["text": prompt]]
         if let imageData {
             let base64Image = imageData.base64EncodedString()
-            parts.insert([
+            currentParts.insert([
                 "inline_data": [
-                    "mime_type": "image/jpeg",
+                    "mime_type": "image/png",
                     "data": base64Image
                 ]
             ], at: 0)
         }
+        contents.append([
+            "role": "user",
+            "parts": currentParts
+        ])
         
         let body: [String: Any] = [
-            "contents": [
-                ["parts": parts]
-            ],
+            "contents": contents,
             "generationConfig": [
                 "temperature": 0.7,
                 "maxOutputTokens": 1024
@@ -138,7 +200,14 @@ class TutoringViewModel {
         
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
-        let (data, _) = try await URLSession.shared.data(for: request)
+        let (data, httpResponse) = try await URLSession.shared.data(for: request)
+        
+        if let httpResp = httpResponse as? HTTPURLResponse {
+            print("[Gemma API] Status: \(httpResp.statusCode)")
+        }
+        if let rawBody = String(data: data, encoding: .utf8) {
+            print("[Gemma API] Response: \(rawBody.prefix(500))")
+        }
         
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let candidates = json["candidates"] as? [[String: Any]],
@@ -167,8 +236,19 @@ class TutoringViewModel {
     
     // MARK: - Canvas Management
     
+    var canvasHasStrokes: Bool {
+        !canvasView.drawing.strokes.isEmpty
+    }
+    
     func clearCanvas() {
         canvasView.drawing = PKDrawing()
+    }
+    
+    func finishNote(save: Bool) {
+        if save {
+            saveDrawingToSession()
+        }
+        clearCanvas()
     }
     
     func saveDrawingToSession() {

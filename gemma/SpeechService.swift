@@ -12,6 +12,7 @@ import Accelerate
 
 nonisolated enum SpeechState: Equatable, Sendable {
     case idle
+    case waitingForWakeWord
     case listening
     case processing
     case speaking
@@ -20,28 +21,39 @@ nonisolated enum SpeechState: Equatable, Sendable {
 // MARK: - Speech Service
 
 @Observable
-class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
+class SpeechService: NSObject {
     
     // State
     var speechState: SpeechState = .idle
     var liveTranscript: String = ""
     var audioLevel: Float = 0.0
     var errorMessage: String?
+    var isWakeWordEnabled = false
     
     // Callbacks
     var onFinalTranscript: ((String) -> Void)?
     var onSpeechFinished: (() -> Void)?
+    var onWakeWordDetected: (() -> Void)?
+    
+    // Google TTS API key (shared with Gemini)
+    var apiKey: String = ""
     
     // Private
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private let audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
+    
+    // Audio playback
+    private var audioPlayer: AVAudioPlayer?
     private let synthesizer = AVSpeechSynthesizer()
     
     private var silenceTimer: Timer?
     private let silenceThreshold: TimeInterval = 2.0
     private var hasFinished = false
+    
+    // Wake word
+    private let wakeWord = "gemma"
     
     override init() {
         super.init()
@@ -72,18 +84,129 @@ class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         SFSpeechRecognizer.authorizationStatus() == .authorized
     }
     
-    // MARK: - Listening (Speech-to-Text)
+    // MARK: - Wake Word Listening
+    
+    func startWakeWordListening() {
+        guard !isWakeWordEnabled else { return }
+        isWakeWordEnabled = true
+        beginWakeWordRecognition()
+    }
+    
+    func stopWakeWordListening() {
+        isWakeWordEnabled = false
+        if speechState == .waitingForWakeWord {
+            stopAudioEngine()
+            speechState = .idle
+        }
+    }
+    
+    private func beginWakeWordRecognition() {
+        guard isWakeWordEnabled,
+              speechState == .idle || speechState == .waitingForWakeWord else { return }
+        
+        // Cancel any existing task
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        
+        guard let speechRecognizer, speechRecognizer.isAvailable else { return }
+        
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothA2DP])
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            return
+        }
+        
+        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+        guard let recognitionRequest else { return }
+        recognitionRequest.shouldReportPartialResults = true
+        
+        let inputNode = audioEngine.inputNode
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+        
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+            self?.recognitionRequest?.append(buffer)
+        }
+        
+        audioEngine.prepare()
+        do {
+            try audioEngine.start()
+        } catch {
+            return
+        }
+        
+        speechState = .waitingForWakeWord
+        liveTranscript = ""
+        
+        recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+            guard let self else { return }
+            
+            if let result {
+                Task { @MainActor in
+                    let text = result.bestTranscription.formattedString.lowercased()
+                    
+                    // Check for wake word
+                    if text.contains(self.wakeWord) {
+                        // Wake word detected — stop this recognition and switch to active listening
+                        self.stopAudioEngine()
+                        
+                        // Extract anything said after "gemma" as the initial prompt
+                        let components = text.components(separatedBy: self.wakeWord)
+                        let afterWakeWord = components.last?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        
+                        self.onWakeWordDetected?()
+                        
+                        if afterWakeWord.isEmpty {
+                            // Just said "Gemma" — start listening for the actual question
+                            self.startListening()
+                        } else {
+                            // Said "Gemma, [question]" — process the question directly
+                            self.speechState = .processing
+                            self.onFinalTranscript?(afterWakeWord)
+                        }
+                        return
+                    }
+                    
+                    // If recognition ends without wake word, restart
+                    if result.isFinal {
+                        self.stopAudioEngine()
+                        // Brief delay before restarting
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(300))
+                            self.beginWakeWordRecognition()
+                        }
+                    }
+                }
+            }
+            
+            if error != nil {
+                Task { @MainActor in
+                    // Only handle if still in wake word state
+                    guard self.speechState == .waitingForWakeWord else { return }
+                    self.stopAudioEngine()
+                    if self.isWakeWordEnabled {
+                        try? await Task.sleep(for: .seconds(1))
+                        self.beginWakeWordRecognition()
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Active Listening (Speech-to-Text)
     
     func startListening() {
-        // If speaking, stop first
         if speechState == .speaking {
             stopSpeaking()
         }
         
-        // Reset the finish guard for a new listening session
-        hasFinished = false
+        // Stop wake word if running
+        if speechState == .waitingForWakeWord {
+            stopAudioEngine()
+        }
         
-        // Cancel any existing task
+        hasFinished = false
         recognitionTask?.cancel()
         recognitionTask = nil
         
@@ -111,7 +234,6 @@ class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
             self?.recognitionRequest?.append(buffer)
             
-            // Calculate audio level for avatar animation
             guard let channelData = buffer.floatChannelData?[0] else { return }
             let frameLength = Int(buffer.frameLength)
             guard frameLength > 0 else { return }
@@ -143,6 +265,7 @@ class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
             
             if let result {
                 Task { @MainActor in
+                    guard self.speechState == .listening else { return }
                     self.liveTranscript = result.bestTranscription.formattedString
                     self.resetSilenceTimer()
                     
@@ -152,13 +275,12 @@ class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
                 }
             }
             
-            if let error {
+            if error != nil {
                 Task { @MainActor in
-                    // Don't show error if we intentionally cancelled
-                    if self.speechState == .listening {
-                        self.errorMessage = error.localizedDescription
-                    }
-                    self.stopAudioEngine()
+                    // Only handle error if we're still in listening state
+                    // After finishListening, ignore stale callbacks
+                    guard self.speechState == .listening else { return }
+                    self.finishListening()
                 }
             }
         }
@@ -170,7 +292,6 @@ class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
     }
     
     private func finishListening() {
-        // Guard against being called twice (silence timer + isFinal callback)
         guard !hasFinished else { return }
         hasFinished = true
         
@@ -188,14 +309,22 @@ class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
             onFinalTranscript?(transcript)
         } else {
             speechState = .idle
+            // Resume wake word listening
+            if isWakeWordEnabled {
+                beginWakeWordRecognition()
+            }
         }
     }
     
     private func stopAudioEngine() {
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
-        recognitionRequest = nil
+        recognitionTask?.cancel()
         recognitionTask = nil
+        recognitionRequest = nil
+        
+        if audioEngine.isRunning {
+            audioEngine.stop()
+            audioEngine.inputNode.removeTap(onBus: 0)
+        }
     }
     
     private func resetSilenceTimer() {
@@ -208,22 +337,160 @@ class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         }
     }
     
-    // MARK: - Speaking (Text-to-Speech)
+    // MARK: - Speaking (Google Cloud Text-to-Speech)
     
     func speak(_ text: String) {
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = 0.52
-        utterance.pitchMultiplier = 1.05
-        utterance.volume = 1.0
-        
         speechState = .speaking
         liveTranscript = text
+        
+        Task { @MainActor in
+            // Brief delay to let audio session fully release from recording mode
+            try? await Task.sleep(for: .milliseconds(200))
+            
+            // Configure audio session for playback
+            do {
+                let audioSession = AVAudioSession.sharedInstance()
+                try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothA2DP])
+                try audioSession.setActive(true)
+            } catch {
+                print("[Audio Session] Setup error: \(error.localizedDescription)")
+            }
+            
+            // Try Google TTS first, fall back to Apple TTS
+            let success = await speakWithGoogleTTS(text)
+            if !success {
+                speakWithAppleTTS(text)
+            }
+        }
+    }
+    
+    private func speakWithGoogleTTS(_ text: String) async -> Bool {
+        guard !apiKey.isEmpty else { return false }
+        
+        let url = URL(string: "https://texttospeech.googleapis.com/v1/text:synthesize?key=\(apiKey)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // Use LINEAR16 (WAV) — AVAudioPlayer handles it natively without codec issues
+        let body: [String: Any] = [
+            "input": ["text": text],
+            "voice": [
+                "languageCode": "en-US",
+                "name": "en-US-Journey-F",
+                "ssmlGender": "FEMALE"
+            ],
+            "audioConfig": [
+                "audioEncoding": "LINEAR16",
+                "sampleRateHertz": 24000,
+                "speakingRate": 1.0,
+                "pitch": 0.0
+            ]
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            let (data, httpResponse) = try await URLSession.shared.data(for: request)
+            
+            if let httpResp = httpResponse as? HTTPURLResponse {
+                print("[Google TTS] Status: \(httpResp.statusCode)")
+                guard httpResp.statusCode == 200 else {
+                    if let raw = String(data: data, encoding: .utf8) {
+                        print("[Google TTS] API Error: \(raw.prefix(500))")
+                    }
+                    return false
+                }
+            }
+            
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let audioContent = json["audioContent"] as? String,
+                  let rawPCM = Data(base64Encoded: audioContent) else {
+                if let raw = String(data: data, encoding: .utf8) {
+                    print("[Google TTS] Parse error: \(raw.prefix(300))")
+                }
+                return false
+            }
+            
+            // LINEAR16 returns raw PCM — wrap in a WAV header for AVAudioPlayer
+            let wavData = createWAVData(from: rawPCM, sampleRate: 24000, channels: 1, bitsPerSample: 16)
+            
+            audioPlayer = try AVAudioPlayer(data: wavData)
+            audioPlayer?.delegate = self
+            audioPlayer?.volume = 1.0
+            audioPlayer?.play()
+            
+            startSpeakingAnimation()
+            
+            print("[Google TTS] Playing \(wavData.count) bytes of audio")
+            return true
+        } catch {
+            print("[Google TTS] Failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+    
+    /// Wraps raw PCM data in a WAV header so AVAudioPlayer can play it
+    private func createWAVData(from pcmData: Data, sampleRate: Int, channels: Int, bitsPerSample: Int) -> Data {
+        let byteRate = sampleRate * channels * (bitsPerSample / 8)
+        let blockAlign = channels * (bitsPerSample / 8)
+        let dataSize = pcmData.count
+        let fileSize = 36 + dataSize
+        
+        var header = Data()
+        
+        // RIFF header
+        header.append(contentsOf: [0x52, 0x49, 0x46, 0x46]) // "RIFF"
+        header.append(contentsOf: withUnsafeBytes(of: UInt32(fileSize).littleEndian) { Array($0) })
+        header.append(contentsOf: [0x57, 0x41, 0x56, 0x45]) // "WAVE"
+        
+        // fmt subchunk
+        header.append(contentsOf: [0x66, 0x6D, 0x74, 0x20]) // "fmt "
+        header.append(contentsOf: withUnsafeBytes(of: UInt32(16).littleEndian) { Array($0) }) // subchunk size
+        header.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) })  // PCM format
+        header.append(contentsOf: withUnsafeBytes(of: UInt16(channels).littleEndian) { Array($0) })
+        header.append(contentsOf: withUnsafeBytes(of: UInt32(sampleRate).littleEndian) { Array($0) })
+        header.append(contentsOf: withUnsafeBytes(of: UInt32(byteRate).littleEndian) { Array($0) })
+        header.append(contentsOf: withUnsafeBytes(of: UInt16(blockAlign).littleEndian) { Array($0) })
+        header.append(contentsOf: withUnsafeBytes(of: UInt16(bitsPerSample).littleEndian) { Array($0) })
+        
+        // data subchunk
+        header.append(contentsOf: [0x64, 0x61, 0x74, 0x61]) // "data"
+        header.append(contentsOf: withUnsafeBytes(of: UInt32(dataSize).littleEndian) { Array($0) })
+        
+        // Combine header + PCM data
+        header.append(pcmData)
+        return header
+    }
+    
+    private func speakWithAppleTTS(_ text: String) {
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        utterance.rate = 0.50
+        utterance.volume = 1.0
         synthesizer.speak(utterance)
+        startSpeakingAnimation()
+    }
+    
+    private var speakingAnimationTimer: Timer?
+    
+    private func startSpeakingAnimation() {
+        speakingAnimationTimer?.invalidate()
+        speakingAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, self.speechState == .speaking else {
+                    self?.speakingAnimationTimer?.invalidate()
+                    return
+                }
+                self.audioLevel = Float.random(in: 0.3...0.8)
+            }
+        }
     }
     
     func stopSpeaking() {
+        audioPlayer?.stop()
+        audioPlayer = nil
         synthesizer.stopSpeaking(at: .immediate)
+        speakingAnimationTimer?.invalidate()
         speechState = .idle
         audioLevel = 0
     }
@@ -234,20 +501,41 @@ class SpeechService: NSObject, AVSpeechSynthesizerDelegate {
         speechState = .processing
     }
     
-    // MARK: - AVSpeechSynthesizerDelegate
+    // MARK: - Resume Wake Word After Speaking
+    
+    private func resumeAfterSpeaking() {
+        speechState = .idle
+        audioLevel = 0
+        speakingAnimationTimer?.invalidate()
+        onSpeechFinished?()
+        
+        // Resume wake word listening
+        if isWakeWordEnabled {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(500))
+                self.beginWakeWordRecognition()
+            }
+        }
+    }
+}
+
+// MARK: - AVAudioPlayerDelegate & AVSpeechSynthesizerDelegate
+
+extension SpeechService: AVAudioPlayerDelegate, AVSpeechSynthesizerDelegate {
+    nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in
+            self.resumeAfterSpeaking()
+        }
+    }
     
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor in
-            self.speechState = .idle
-            self.audioLevel = 0
-            self.onSpeechFinished?()
+            self.resumeAfterSpeaking()
         }
     }
     
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, willSpeakRangeOfSpeechString characterRange: NSRange, utterance: AVSpeechUtterance) {
-        // Animate audio level during speech
         Task { @MainActor in
-            // Simulate audio level variation during TTS
             self.audioLevel = Float.random(in: 0.3...0.8)
         }
     }
