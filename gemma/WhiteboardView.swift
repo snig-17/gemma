@@ -11,11 +11,32 @@ import PencilKit
 struct CanvasView: UIViewRepresentable {
     @Binding var canvasView: PKCanvasView
     @Binding var toolPicker: PKToolPicker
+    let background: WhiteboardBackground
+    
+    // Large virtual canvas size for scrolling
+    static let canvasWidth: CGFloat = 2048
+    static let canvasHeight: CGFloat = 4096
     
     func makeUIView(context: Context) -> PKCanvasView {
-        canvasView.backgroundColor = .clear
         canvasView.drawingPolicy = .anyInput
-        canvasView.isOpaque = false
+        canvasView.isOpaque = true
+        canvasView.backgroundColor = .white
+        
+        // Enable scrolling and zooming
+        canvasView.contentSize = CGSize(width: Self.canvasWidth, height: Self.canvasHeight)
+        canvasView.minimumZoomScale = 0.5
+        canvasView.maximumZoomScale = 4.0
+        canvasView.bouncesZoom = true
+        canvasView.showsVerticalScrollIndicator = true
+        canvasView.showsHorizontalScrollIndicator = true
+        
+        // Add background pattern view behind drawing content
+        let bgView = BackgroundPatternView(
+            frame: CGRect(x: 0, y: 0, width: Self.canvasWidth, height: Self.canvasHeight),
+            background: background
+        )
+        bgView.tag = 999
+        canvasView.insertSubview(bgView, at: 0)
         
         toolPicker.setVisible(true, forFirstResponder: canvasView)
         toolPicker.addObserver(canvasView)
@@ -24,7 +45,102 @@ struct CanvasView: UIViewRepresentable {
         return canvasView
     }
     
-    func updateUIView(_ uiView: PKCanvasView, context: Context) {}
+    func updateUIView(_ uiView: PKCanvasView, context: Context) {
+        // Update background pattern when changed
+        if let bgView = uiView.viewWithTag(999) as? BackgroundPatternView {
+            if bgView.background != background {
+                bgView.background = background
+                bgView.setNeedsDisplay()
+            }
+        }
+    }
+}
+
+// MARK: - UIKit Background Pattern View
+
+class BackgroundPatternView: UIView {
+    var background: WhiteboardBackground
+    
+    init(frame: CGRect, background: WhiteboardBackground) {
+        self.background = background
+        super.init(frame: frame)
+        self.backgroundColor = .clear
+        self.isUserInteractionEnabled = false
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func draw(_ rect: CGRect) {
+        guard let ctx = UIGraphicsGetCurrentContext() else { return }
+        
+        // Fill white background
+        ctx.setFillColor(UIColor.white.cgColor)
+        ctx.fill(rect)
+        
+        switch background {
+        case .grid:
+            drawGrid(in: ctx, rect: rect)
+        case .dotted:
+            drawDotted(in: ctx, rect: rect)
+        case .lined:
+            drawLined(in: ctx, rect: rect)
+        case .plain:
+            break
+        }
+    }
+    
+    private func drawGrid(in ctx: CGContext, rect: CGRect) {
+        let spacing: CGFloat = 24
+        ctx.setStrokeColor(UIColor.secondaryLabel.withAlphaComponent(0.1).cgColor)
+        ctx.setLineWidth(0.5)
+        
+        let rows = Int(rect.height / spacing)
+        let cols = Int(rect.width / spacing)
+        
+        for row in 0...rows {
+            let y = CGFloat(row) * spacing
+            ctx.move(to: CGPoint(x: 0, y: y))
+            ctx.addLine(to: CGPoint(x: rect.width, y: y))
+        }
+        for col in 0...cols {
+            let x = CGFloat(col) * spacing
+            ctx.move(to: CGPoint(x: x, y: 0))
+            ctx.addLine(to: CGPoint(x: x, y: rect.height))
+        }
+        ctx.strokePath()
+    }
+    
+    private func drawDotted(in ctx: CGContext, rect: CGRect) {
+        let spacing: CGFloat = 24
+        ctx.setFillColor(UIColor.secondaryLabel.withAlphaComponent(0.15).cgColor)
+        
+        let rows = Int(rect.height / spacing)
+        let cols = Int(rect.width / spacing)
+        
+        for row in 0...rows {
+            for col in 0...cols {
+                let x = CGFloat(col) * spacing
+                let y = CGFloat(row) * spacing
+                ctx.fillEllipse(in: CGRect(x: x - 1.5, y: y - 1.5, width: 3, height: 3))
+            }
+        }
+    }
+    
+    private func drawLined(in ctx: CGContext, rect: CGRect) {
+        let spacing: CGFloat = 32
+        ctx.setStrokeColor(UIColor.systemBlue.withAlphaComponent(0.12).cgColor)
+        ctx.setLineWidth(0.5)
+        
+        let rows = Int(rect.height / spacing)
+        for row in 1...rows {
+            let y = CGFloat(row) * spacing
+            ctx.move(to: CGPoint(x: 0, y: y))
+            ctx.addLine(to: CGPoint(x: rect.width, y: y))
+        }
+        ctx.strokePath()
+    }
 }
 
 // MARK: - Whiteboard View
@@ -36,9 +152,11 @@ struct WhiteboardView: View {
     let onClear: () -> Void
     let onSnapshot: () -> Void
     let onSave: () -> Void
+    let onExportPDF: () -> URL?
     let onFinishNote: () -> Void
     
     @State private var showBackgroundPicker = false
+    @State private var showExportEmpty = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -61,11 +179,16 @@ struct WhiteboardView: View {
                     backgroundPickerContent
                 }
                 
-                // Save work
+                // Export PDF
                 Button {
                     onSave()
+                    if let url = onExportPDF() {
+                        presentShareSheet(url: url)
+                    } else {
+                        showExportEmpty = true
+                    }
                 } label: {
-                    Label("Save", systemImage: "square.and.arrow.down")
+                    Label("Export", systemImage: "square.and.arrow.up")
                         .font(.subheadline)
                 }
                 .tint(.blue)
@@ -93,19 +216,43 @@ struct WhiteboardView: View {
             .background(.ultraThinMaterial)
             
             // Canvas
-            ZStack {
-                backgroundView
-                
-                CanvasView(canvasView: $canvasView, toolPicker: $toolPicker)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1)
-            )
-            .padding(8)
+            CanvasView(canvasView: $canvasView, toolPicker: $toolPicker, background: background)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1)
+                )
+                .padding(8)
         }
         .background(Color(uiColor: .secondarySystemBackground))
+        .alert("Nothing to Export", isPresented: $showExportEmpty) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Draw something on the whiteboard first, then try exporting again.")
+        }
+    }
+    
+    /// Present UIActivityViewController directly from the root window so it works on iPad
+    private func presentShareSheet(url: URL) {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootVC = windowScene.windows.first?.rootViewController else { return }
+        
+        // Walk to the topmost presented controller
+        var topVC = rootVC
+        while let presented = topVC.presentedViewController {
+            topVC = presented
+        }
+        
+        let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        
+        // iPad requires popover source — anchor to center-top of the screen
+        if let popover = activityVC.popoverPresentationController {
+            popover.sourceView = topVC.view
+            popover.sourceRect = CGRect(x: topVC.view.bounds.midX, y: 60, width: 0, height: 0)
+            popover.permittedArrowDirections = .up
+        }
+        
+        topVC.present(activityVC, animated: true)
     }
     
     // MARK: - Background Picker
@@ -127,12 +274,12 @@ struct WhiteboardView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8)
-                                        .stroke(bg == background ? Color.purple : Color.secondary.opacity(0.3), lineWidth: bg == background ? 2 : 1)
+                                        .stroke(bg == background ? AppTheme.primary : Color.secondary.opacity(0.3), lineWidth: bg == background ? 2 : 1)
                                 )
                             
                             Text(bg.displayName)
                                 .font(.caption2)
-                                .foregroundStyle(bg == background ? .purple : .secondary)
+                                .foregroundStyle(bg == background ? AppTheme.primary : .secondary)
                         }
                     }
                     .foregroundStyle(.primary)
@@ -157,95 +304,6 @@ struct WhiteboardView: View {
         }
     }
     
-    // MARK: - Dynamic Background
-    
-    @ViewBuilder
-    private var backgroundView: some View {
-        switch background {
-        case .grid:
-            GridBackground()
-        case .dotted:
-            DottedBackground()
-        case .lined:
-            LinedBackground()
-        case .plain:
-            Color.white
-        }
-    }
-}
-
-// MARK: - Grid Background
-
-struct GridBackground: View {
-    let spacing: CGFloat = 24
-    
-    var body: some View {
-        Canvas { context, size in
-            let rows = Int(size.height / spacing)
-            let cols = Int(size.width / spacing)
-            
-            for row in 0...rows {
-                let y = CGFloat(row) * spacing
-                var path = Path()
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: size.width, y: y))
-                context.stroke(path, with: .color(.secondary.opacity(0.1)), lineWidth: 0.5)
-            }
-            
-            for col in 0...cols {
-                let x = CGFloat(col) * spacing
-                var path = Path()
-                path.move(to: CGPoint(x: x, y: 0))
-                path.addLine(to: CGPoint(x: x, y: size.height))
-                context.stroke(path, with: .color(.secondary.opacity(0.1)), lineWidth: 0.5)
-            }
-        }
-        .background(Color.white)
-    }
-}
-
-// MARK: - Dotted Background
-
-struct DottedBackground: View {
-    let spacing: CGFloat = 24
-    
-    var body: some View {
-        Canvas { context, size in
-            let rows = Int(size.height / spacing)
-            let cols = Int(size.width / spacing)
-            
-            for row in 0...rows {
-                for col in 0...cols {
-                    let x = CGFloat(col) * spacing
-                    let y = CGFloat(row) * spacing
-                    let rect = CGRect(x: x - 1.5, y: y - 1.5, width: 3, height: 3)
-                    context.fill(Path(ellipseIn: rect), with: .color(.secondary.opacity(0.15)))
-                }
-            }
-        }
-        .background(Color.white)
-    }
-}
-
-// MARK: - Lined Background
-
-struct LinedBackground: View {
-    let spacing: CGFloat = 32
-    
-    var body: some View {
-        Canvas { context, size in
-            let rows = Int(size.height / spacing)
-            
-            for row in 1...rows {
-                let y = CGFloat(row) * spacing
-                var path = Path()
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: size.width, y: y))
-                context.stroke(path, with: .color(.blue.opacity(0.12)), lineWidth: 0.5)
-            }
-        }
-        .background(Color.white)
-    }
 }
 
 // MARK: - Mini Thumbnail Backgrounds
@@ -308,3 +366,5 @@ struct MiniLinedBackground: View {
         .background(Color.white)
     }
 }
+
+

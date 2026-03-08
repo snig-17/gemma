@@ -6,6 +6,19 @@
 import Foundation
 import SwiftUI
 
+// MARK: - App Theme
+
+enum AppTheme {
+    /// Primary coral/salmon color #ea785c
+    static let primary = Color(red: 0.918, green: 0.471, blue: 0.361)
+    /// Light gray background #f0f0f0
+    static let secondary = Color(red: 0.941, green: 0.941, blue: 0.941)
+    /// Darker shade of primary for gradients
+    static let primaryDark = Color(red: 0.82, green: 0.38, blue: 0.28)
+    /// Lighter shade of primary for highlights/backgrounds
+    static let primaryLight = Color(red: 0.95, green: 0.60, blue: 0.50)
+}
+
 // MARK: - Chat Message
 
 struct ChatMessage: Identifiable, Codable {
@@ -245,6 +258,63 @@ enum GemTier: String, Codable, CaseIterable {
         case 80..<200: .emerald
         default: .ruby
         }
+    }
+}
+
+// MARK: - Flashcard
+
+struct Flashcard: Identifiable, Codable {
+    let id: UUID
+    var subject: String
+    var front: String
+    var back: String
+    var createdAt: Date
+    var reviewCount: Int
+    var lastReviewed: Date?
+    
+    init(id: UUID = UUID(), subject: String, front: String, back: String) {
+        self.id = id
+        self.subject = subject
+        self.front = front
+        self.back = back
+        self.createdAt = Date()
+        self.reviewCount = 0
+        self.lastReviewed = nil
+    }
+    
+    /// Parse [FLASHCARD front:... back:...] tags from an AI response.
+    /// Returns the parsed flashcards and the cleaned text with tags removed.
+    static func parseFlashcards(from response: String, subject: String) -> ([Flashcard], String) {
+        var cleaned = response
+        var cards: [Flashcard] = []
+        
+        // Match [FLASHCARD front:... back:...]
+        let pattern = #"\[FLASHCARD\s+front:(.*?)\s+back:(.*?)\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else {
+            return ([], response)
+        }
+        
+        let nsString = response as NSString
+        let matches = regex.matches(in: response, range: NSRange(location: 0, length: nsString.length))
+        
+        for match in matches.reversed() {
+            let frontRange = match.range(at: 1)
+            let backRange = match.range(at: 2)
+            
+            let front = nsString.substring(with: frontRange).trimmingCharacters(in: .whitespacesAndNewlines)
+            let back = nsString.substring(with: backRange).trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if !front.isEmpty && !back.isEmpty {
+                cards.append(Flashcard(subject: subject, front: front, back: back))
+            }
+            
+            // Remove the tag from cleaned text
+            let fullRange = match.range(at: 0)
+            cleaned = (cleaned as NSString).replacingCharacters(in: fullRange, with: "")
+        }
+        
+        cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (cards, cleaned)
     }
 }
 

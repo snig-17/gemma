@@ -9,7 +9,8 @@ import PencilKit
 struct ContentView: View {
     let subject: Subject
     @Binding var profile: UserProfile
-    var onEndSession: (Subject) -> Void
+    @Binding var flashcards: [Flashcard]
+    var onEndSession: (Subject, [Flashcard]) -> Void
     
     @State private var viewModel: TutoringViewModel
     @State private var showSessionSheet = false
@@ -17,9 +18,10 @@ struct ContentView: View {
     @State private var showFinishNoteAlert = false
     @State private var showSaveOnLeaveAlert = false
     
-    init(subject: Subject, profile: Binding<UserProfile>, onEndSession: @escaping (Subject) -> Void) {
+    init(subject: Subject, profile: Binding<UserProfile>, flashcards: Binding<[Flashcard]>, onEndSession: @escaping (Subject, [Flashcard]) -> Void) {
         self.subject = subject
         self._profile = profile
+        self._flashcards = flashcards
         self.onEndSession = onEndSession
         self._viewModel = State(initialValue: TutoringViewModel(subject: subject))
     }
@@ -39,6 +41,7 @@ struct ContentView: View {
         }
         .onAppear {
             viewModel.speechService.requestPermissions()
+            viewModel.flashcards = flashcards
         }
         .sheet(isPresented: $showSessionSheet) {
             NavigationStack {
@@ -83,10 +86,10 @@ struct ContentView: View {
         .alert("Save Note?", isPresented: $showSaveOnLeaveAlert) {
             Button("Yes") {
                 viewModel.finishNote(save: true)
-                onEndSession(viewModel.updatedSubject)
+                onEndSession(viewModel.updatedSubject, viewModel.flashcards)
             }
             Button("No", role: .destructive) {
-                onEndSession(viewModel.updatedSubject)
+                onEndSession(viewModel.updatedSubject, viewModel.flashcards)
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -158,7 +161,7 @@ struct ContentView: View {
                 }
                 .tag(1)
         }
-        .tint(.purple)
+        .tint(AppTheme.primary)
         .overlay(alignment: .topLeading) {
             backButton
                 .padding(.leading, 16)
@@ -202,6 +205,9 @@ struct ContentView: View {
             onSave: {
                 viewModel.saveDrawingToSession()
             },
+            onExportPDF: {
+                viewModel.exportPDF()
+            },
             onFinishNote: {
                 showFinishNoteAlert = true
             }
@@ -217,7 +223,7 @@ struct ContentView: View {
             if viewModel.canvasHasStrokes {
                 showSaveOnLeaveAlert = true
             } else {
-                onEndSession(viewModel.updatedSubject)
+                onEndSession(viewModel.updatedSubject, viewModel.flashcards)
             }
         } label: {
             HStack(spacing: 6) {
@@ -249,6 +255,7 @@ struct ContentView: View {
     ContentView(
         subject: Subject(name: "Algebra", icon: "function"),
         profile: .constant(UserProfile()),
-        onEndSession: { _ in }
+        flashcards: .constant([]),
+        onEndSession: { _, _ in }
     )
 }

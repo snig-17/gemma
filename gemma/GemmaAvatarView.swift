@@ -396,15 +396,14 @@ struct GemmaAvatarView: View {
         // Draw a dashed circle that appears to rotate via dash offset
         let gearRect = CGRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2)
         let dashPattern: [CGFloat] = [2, 2]
-        // Approximate rotation by shifting dash phase
         let phase = CGFloat(rotation.truncatingRemainder(dividingBy: 360)) / 360.0 * 4.0
-        context.opacity = 0.2
-        context.stroke(
+        var gearContext = context
+        gearContext.opacity = 0.2
+        gearContext.stroke(
             Circle().path(in: gearRect),
             with: .color(color),
             style: StrokeStyle(lineWidth: 1.2, lineCap: .round, dash: dashPattern, dashPhase: phase)
         )
-        context.opacity = 1.0
     }
     
     // MARK: - Computed Properties

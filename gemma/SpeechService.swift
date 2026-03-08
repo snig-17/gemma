@@ -45,13 +45,36 @@ class SpeechService: NSObject {
     private var audioPlayer: AVAudioPlayer?
     private let synthesizer = AVSpeechSynthesizer()
     
+    // Shared URL session with tight timeouts for TTS
+    private let ttsSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 8
+        config.timeoutIntervalForResource = 12
+        return URLSession(configuration: config)
+    }()
+    
     private var silenceTimer: Timer?
     private let silenceThreshold: TimeInterval = 2.0
     private var hasFinished = false
+    private var audioSessionReady = false
     
     override init() {
         super.init()
         synthesizer.delegate = self
+        // Pre-warm audio session so it's ready when TTS returns
+        prepareAudioSession()
+    }
+    
+    /// Prepare audio session once at startup so speak() doesn't wait
+    private func prepareAudioSession() {
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothA2DP])
+            try session.setActive(true)
+            audioSessionReady = true
+        } catch {
+            print("[Audio Session] Pre-warm failed: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Permissions
@@ -185,6 +208,9 @@ class SpeechService: NSObject {
         speechState = .processing
         audioLevel = 0
         
+        // Re-prepare audio session for playback (listening used .measurement mode)
+        prepareAudioSession()
+        
         if !transcript.isEmpty {
             onFinalTranscript?(transcript)
         } else {
@@ -220,174 +246,74 @@ class SpeechService: NSObject {
         speechState = .speaking
         liveTranscript = text
         
+        // Ensure audio session is ready (no-op if already prepared)
+        if !audioSessionReady {
+            prepareAudioSession()
+        }
+        
         Task { @MainActor in
-            // Configure audio session for playback immediately (no delay)
-            do {
-                let audioSession = AVAudioSession.sharedInstance()
-                try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothA2DP])
-                try audioSession.setActive(true)
-            } catch {
-                print("[Audio Session] Setup error: \(error.localizedDescription)")
-            }
+            let audioData = await fetchGoogleTTSAudio(text)
             
-            // Try Google TTS first, fall back to Apple TTS
-            let success = await speakWithGoogleTTS(text)
-            if !success {
+            if let audioData, let player = try? AVAudioPlayer(data: audioData) {
+                audioPlayer = player
+                audioPlayer?.delegate = self
+                audioPlayer?.volume = 1.0
+                audioPlayer?.prepareToPlay()
+                audioPlayer?.play()
+                startSpeakingAnimation()
+            } else {
+                // Fall back to Apple TTS
                 speakWithAppleTTS(text)
             }
         }
     }
     
-    private func speakWithGoogleTTS(_ text: String) async -> Bool {
-        guard !apiKey.isEmpty else { return false }
+    /// Fetch TTS audio data from Google, returns MP3 data or nil
+    private func fetchGoogleTTSAudio(_ text: String) async -> Data? {
+        guard !apiKey.isEmpty else { return nil }
+        
+        // Truncate very long responses to keep TTS fast
+        let truncated = String(text.prefix(800))
         
         let url = URL(string: "https://texttospeech.googleapis.com/v1/text:synthesize?key=\(apiKey)")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // Try MP3 first (much smaller payload = faster download), fall back to LINEAR16
         let body: [String: Any] = [
-            "input": ["text": text],
+            "input": ["text": truncated],
             "voice": [
                 "languageCode": "en-US",
-                "name": "en-US-Journey-F",
+                "name": "en-US-Standard-F",
                 "ssmlGender": "FEMALE"
             ],
             "audioConfig": [
                 "audioEncoding": "MP3",
-                "speakingRate": 1.0,
-                "pitch": 0.0
+                "speakingRate": 1.12,
+                "pitch": 1.0
             ]
         ]
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
-            let (data, httpResponse) = try await URLSession.shared.data(for: request)
+            let (data, httpResponse) = try await ttsSession.data(for: request)
             
-            if let httpResp = httpResponse as? HTTPURLResponse {
+            if let httpResp = httpResponse as? HTTPURLResponse, httpResp.statusCode != 200 {
                 print("[Google TTS] Status: \(httpResp.statusCode)")
-                guard httpResp.statusCode == 200 else {
-                    if let raw = String(data: data, encoding: .utf8) {
-                        print("[Google TTS] API Error: \(raw.prefix(500))")
-                    }
-                    return false
-                }
+                return nil
             }
             
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let audioContent = json["audioContent"] as? String,
                   let audioData = Data(base64Encoded: audioContent) else {
-                if let raw = String(data: data, encoding: .utf8) {
-                    print("[Google TTS] Parse error: \(raw.prefix(300))")
-                }
-                return false
+                return nil
             }
             
-            // Try playing MP3 directly
-            do {
-                audioPlayer = try AVAudioPlayer(data: audioData)
-            } catch {
-                print("[Google TTS] MP3 decode failed, retrying with LINEAR16...")
-                return await speakWithGoogleTTSLinear16(text)
-            }
-            
-            audioPlayer?.delegate = self
-            audioPlayer?.volume = 1.0
-            audioPlayer?.prepareToPlay()
-            audioPlayer?.play()
-            
-            startSpeakingAnimation()
-            
-            print("[Google TTS] Playing \(audioData.count) bytes of MP3 audio")
-            return true
+            return audioData
         } catch {
             print("[Google TTS] Failed: \(error.localizedDescription)")
-            return false
+            return nil
         }
-    }
-    
-    /// Fallback: Use LINEAR16 encoding if MP3 fails
-    private func speakWithGoogleTTSLinear16(_ text: String) async -> Bool {
-        let url = URL(string: "https://texttospeech.googleapis.com/v1/text:synthesize?key=\(apiKey)")!
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let body: [String: Any] = [
-            "input": ["text": text],
-            "voice": [
-                "languageCode": "en-US",
-                "name": "en-US-Journey-F",
-                "ssmlGender": "FEMALE"
-            ],
-            "audioConfig": [
-                "audioEncoding": "LINEAR16",
-                "sampleRateHertz": 24000,
-                "speakingRate": 1.0,
-                "pitch": 0.0
-            ]
-        ]
-        
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
-            let (data, _) = try await URLSession.shared.data(for: request)
-            
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let audioContent = json["audioContent"] as? String,
-                  let rawPCM = Data(base64Encoded: audioContent) else {
-                return false
-            }
-            
-            let wavData = createWAVData(from: rawPCM, sampleRate: 24000, channels: 1, bitsPerSample: 16)
-            
-            audioPlayer = try AVAudioPlayer(data: wavData)
-            audioPlayer?.delegate = self
-            audioPlayer?.volume = 1.0
-            audioPlayer?.prepareToPlay()
-            audioPlayer?.play()
-            
-            startSpeakingAnimation()
-            
-            print("[Google TTS] Playing \(wavData.count) bytes of LINEAR16 audio (fallback)")
-            return true
-        } catch {
-            print("[Google TTS LINEAR16] Failed: \(error.localizedDescription)")
-            return false
-        }
-    }
-    
-    /// Wraps raw PCM data in a WAV header so AVAudioPlayer can play it
-    private func createWAVData(from pcmData: Data, sampleRate: Int, channels: Int, bitsPerSample: Int) -> Data {
-        let byteRate = sampleRate * channels * (bitsPerSample / 8)
-        let blockAlign = channels * (bitsPerSample / 8)
-        let dataSize = pcmData.count
-        let fileSize = 36 + dataSize
-        
-        var header = Data()
-        
-        // RIFF header
-        header.append(contentsOf: [0x52, 0x49, 0x46, 0x46]) // "RIFF"
-        header.append(contentsOf: withUnsafeBytes(of: UInt32(fileSize).littleEndian) { Array($0) })
-        header.append(contentsOf: [0x57, 0x41, 0x56, 0x45]) // "WAVE"
-        
-        // fmt subchunk
-        header.append(contentsOf: [0x66, 0x6D, 0x74, 0x20]) // "fmt "
-        header.append(contentsOf: withUnsafeBytes(of: UInt32(16).littleEndian) { Array($0) }) // subchunk size
-        header.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) })  // PCM format
-        header.append(contentsOf: withUnsafeBytes(of: UInt16(channels).littleEndian) { Array($0) })
-        header.append(contentsOf: withUnsafeBytes(of: UInt32(sampleRate).littleEndian) { Array($0) })
-        header.append(contentsOf: withUnsafeBytes(of: UInt32(byteRate).littleEndian) { Array($0) })
-        header.append(contentsOf: withUnsafeBytes(of: UInt16(blockAlign).littleEndian) { Array($0) })
-        header.append(contentsOf: withUnsafeBytes(of: UInt16(bitsPerSample).littleEndian) { Array($0) })
-        
-        // data subchunk
-        header.append(contentsOf: [0x64, 0x61, 0x74, 0x61]) // "data"
-        header.append(contentsOf: withUnsafeBytes(of: UInt32(dataSize).littleEndian) { Array($0) })
-        
-        // Combine header + PCM data
-        header.append(pcmData)
-        return header
     }
     
     private func speakWithAppleTTS(_ text: String) {
@@ -403,7 +329,7 @@ class SpeechService: NSObject {
     
     private func startSpeakingAnimation() {
         speakingAnimationTimer?.invalidate()
-        speakingAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+        speakingAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.07, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.speechState == .speaking else {
                     self?.speakingAnimationTimer?.invalidate()
@@ -429,7 +355,7 @@ class SpeechService: NSObject {
         speechState = .processing
     }
     
-    // MARK: - Resume Wake Word After Speaking
+    // MARK: - Resume After Speaking
     
     private func resumeAfterSpeaking() {
         speechState = .idle

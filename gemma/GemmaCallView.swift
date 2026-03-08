@@ -85,7 +85,7 @@ struct GemmaCallView: View {
         switch speechService.speechState {
         case .idle: .gray
         case .listening: .blue
-        case .processing: .orange
+        case .processing: AppTheme.primaryDark
         case .speaking: .green
         }
     }
@@ -188,7 +188,7 @@ struct GemmaCallView: View {
             ControlButton(
                 icon: "rectangle.and.pencil.and.ellipsis",
                 label: "Board",
-                color: .blue
+                color: AppTheme.primary
             ) {
                 onShareWhiteboard()
             }
@@ -239,10 +239,10 @@ struct GemmaCallView: View {
     
     private var micButtonColor: Color {
         switch speechService.speechState {
-        case .idle: .purple
+        case .idle: AppTheme.primary
         case .listening: .red
         case .processing: .gray
-        case .speaking: .orange
+        case .speaking: AppTheme.primaryDark
         }
     }
     
@@ -295,7 +295,7 @@ struct ConversationLogEntry: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: message.isUser ? "person.fill" : "sparkle")
                 .font(.caption2)
-                .foregroundStyle(message.isUser ? .blue : .purple)
+                .foregroundStyle(message.isUser ? .blue : AppTheme.primary)
                 .frame(width: 16)
             
             Text(message.content)

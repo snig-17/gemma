@@ -54,7 +54,7 @@ struct OnboardingView: View {
                 .font(.largeTitle.bold())
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [.purple, .blue],
+                        colors: [AppTheme.primary, AppTheme.primaryDark],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
@@ -83,14 +83,14 @@ struct OnboardingView: View {
                         .padding(.vertical, 20)
                         .background(
                             selectedRole == role
-                            ? Color.purple.opacity(0.15)
+                            ? AppTheme.primary.opacity(0.15)
                             : Color(uiColor: .systemBackground)
                         )
-                        .foregroundStyle(selectedRole == role ? .purple : .primary)
+                        .foregroundStyle(selectedRole == role ? AppTheme.primary : .primary)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                         .overlay(
                             RoundedRectangle(cornerRadius: 16)
-                                .stroke(selectedRole == role ? Color.purple : Color.secondary.opacity(0.2), lineWidth: selectedRole == role ? 2 : 1)
+                                .stroke(selectedRole == role ? AppTheme.primary : Color.secondary.opacity(0.2), lineWidth: selectedRole == role ? 2 : 1)
                         )
                     }
                 }
@@ -167,14 +167,14 @@ struct OnboardingView: View {
                                 
                                 if selectedSubjects.contains(name) {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.purple)
+                                        .foregroundStyle(AppTheme.primary)
                                 }
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 14)
                             .background(
                                 selectedSubjects.contains(name)
-                                ? Color.purple.opacity(0.1)
+                                ? AppTheme.primary.opacity(0.1)
                                 : Color(uiColor: .systemBackground)
                             )
                             .foregroundStyle(.primary)
@@ -182,7 +182,7 @@ struct OnboardingView: View {
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
                                     .stroke(
-                                        selectedSubjects.contains(name) ? Color.purple.opacity(0.4) : Color.secondary.opacity(0.15),
+                                        selectedSubjects.contains(name) ? AppTheme.primary.opacity(0.4) : Color.secondary.opacity(0.15),
                                         lineWidth: 1
                                     )
                             )
@@ -200,7 +200,7 @@ struct OnboardingView: View {
                         Text("Add Custom Subject")
                     }
                     .font(.subheadline)
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(AppTheme.primary)
                 }
                 .padding(.top, 8)
             }
@@ -229,7 +229,7 @@ struct OnboardingView: View {
             HStack(spacing: 8) {
                 ForEach(0..<3, id: \.self) { index in
                     Circle()
-                        .fill(index == currentPage ? Color.purple : Color.secondary.opacity(0.3))
+                        .fill(index == currentPage ? AppTheme.primary : Color.secondary.opacity(0.3))
                         .frame(width: 8, height: 8)
                 }
             }
@@ -270,7 +270,7 @@ struct OnboardingView: View {
                         .font(.subheadline.weight(.medium))
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(Color.purple)
+                        .background(AppTheme.primary)
                         .foregroundStyle(.white)
                         .clipShape(Capsule())
                     }
@@ -287,7 +287,7 @@ struct OnboardingView: View {
                         .padding(.vertical, 12)
                         .background(
                             LinearGradient(
-                                colors: [.purple, .blue],
+                                colors: [AppTheme.primary, AppTheme.primaryDark],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )

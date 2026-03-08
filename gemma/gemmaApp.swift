@@ -21,6 +21,7 @@ struct gemmaApp: App {
 struct RootView: View {
     @State private var profile = UserProfile()
     @State private var activeSubject: Subject?
+    @State private var flashcards: [Flashcard] = []
     
     var body: some View {
         if !profile.hasCompletedOnboarding {
@@ -32,11 +33,15 @@ struct RootView: View {
             ContentView(
                 subject: subject,
                 profile: $profile,
-                onEndSession: { updatedSubject in
+                flashcards: $flashcards,
+                onEndSession: { updatedSubject, updatedFlashcards in
                     // Update subject stats
                     if let index = profile.subjects.firstIndex(where: { $0.id == updatedSubject.id }) {
                         profile.subjects[index] = updatedSubject
                     }
+                    // Merge flashcards from session
+                    flashcards = updatedFlashcards
+                    saveFlashcards()
                     profile.recordActivity()
                     saveProfile()
                     activeSubject = nil
@@ -46,6 +51,7 @@ struct RootView: View {
         } else {
             LandingPageView(
                 profile: $profile,
+                flashcards: flashcards,
                 onStartSession: { subject in
                     withAnimation(.easeInOut(duration: 0.3)) {
                         activeSubject = subject
@@ -53,6 +59,17 @@ struct RootView: View {
                 },
                 onSaveProfile: {
                     saveProfile()
+                },
+                onDeleteFlashcard: { card in
+                    flashcards.removeAll { $0.id == card.id }
+                    saveFlashcards()
+                },
+                onMarkReviewed: { card in
+                    if let index = flashcards.firstIndex(where: { $0.id == card.id }) {
+                        flashcards[index].reviewCount += 1
+                        flashcards[index].lastReviewed = Date()
+                        saveFlashcards()
+                    }
                 }
             )
             .transition(.move(edge: .leading))
@@ -75,14 +92,37 @@ struct RootView: View {
         }
     }
     
+    private var flashcardsURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("flashcards.json")
+    }
+    
+    private func saveFlashcards() {
+        do {
+            let data = try JSONEncoder().encode(flashcards)
+            try data.write(to: flashcardsURL)
+        } catch {
+            print("Failed to save flashcards: \(error)")
+        }
+    }
+    
     init() {
-        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("user_profile.json")
+        let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         
-        if FileManager.default.fileExists(atPath: url.path),
-           let data = try? Data(contentsOf: url),
+        // Load profile
+        let profilePath = docsDir.appendingPathComponent("user_profile.json")
+        if FileManager.default.fileExists(atPath: profilePath.path),
+           let data = try? Data(contentsOf: profilePath),
            let decoded = try? JSONDecoder().decode(UserProfile.self, from: data) {
             _profile = State(initialValue: decoded)
+        }
+        
+        // Load flashcards
+        let flashcardsPath = docsDir.appendingPathComponent("flashcards.json")
+        if FileManager.default.fileExists(atPath: flashcardsPath.path),
+           let data = try? Data(contentsOf: flashcardsPath),
+           let decoded = try? JSONDecoder().decode([Flashcard].self, from: data) {
+            _flashcards = State(initialValue: decoded)
         }
     }
 }

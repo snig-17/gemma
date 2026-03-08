@@ -7,8 +7,11 @@ import SwiftUI
 
 struct LandingPageView: View {
     @Binding var profile: UserProfile
+    let flashcards: [Flashcard]
     let onStartSession: (Subject) -> Void
     let onSaveProfile: () -> Void
+    let onDeleteFlashcard: (Flashcard) -> Void
+    let onMarkReviewed: (Flashcard) -> Void
     
     @State private var showAddSubject = false
     @State private var newSubjectName = ""
@@ -17,6 +20,7 @@ struct LandingPageView: View {
     @State private var showAvatarBuilder = false
     @State private var subjectToDelete: Subject?
     @State private var showDeleteConfirm = false
+    @State private var showFlashcardReview = false
     
     var body: some View {
         GeometryReader { geo in
@@ -96,22 +100,11 @@ struct LandingPageView: View {
     private var mainContent: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Header
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("gemma")
-                        .font(.largeTitle.bold())
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.purple, .blue],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                    
-                    Text("Your AI Tutor")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
+            HStack(alignment: .center) {
+                Image("GemmaLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 52)
                 
                 Spacer()
                 
@@ -151,12 +144,24 @@ struct LandingPageView: View {
                 .padding(.vertical, 4)
             }
             
+            // Tricky Concepts (flashcards)
+            if !flashcards.isEmpty {
+                trickyConceptsSection
+            }
+            
             Spacer()
             
             // Gem tier progress
             gemTierProgress
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
+        }
+        .sheet(isPresented: $showFlashcardReview) {
+            FlashcardView(
+                flashcards: flashcards,
+                onDelete: onDeleteFlashcard,
+                onMarkReviewed: onMarkReviewed
+            )
         }
     }
     
@@ -178,6 +183,45 @@ struct LandingPageView: View {
         .clipShape(Capsule())
     }
     
+    // MARK: - Tricky Concepts
+    
+    private var trickyConceptsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Tricky Concepts")
+                    .font(.headline)
+                
+                Spacer()
+                
+                Button {
+                    showFlashcardReview = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Review All")
+                            .font(.caption.weight(.medium))
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(AppTheme.primary)
+                }
+            }
+            .padding(.horizontal, 24)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(flashcards.prefix(10)) { card in
+                        MiniFlashcard(card: card)
+                            .onTapGesture {
+                                showFlashcardReview = true
+                            }
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 4)
+            }
+        }
+    }
+    
     // MARK: - Profile Card
     
     private var profileCard: some View {
@@ -190,7 +234,7 @@ struct LandingPageView: View {
                     .overlay(alignment: .bottomTrailing) {
                         Image(systemName: "pencil.circle.fill")
                             .font(.title3)
-                            .foregroundStyle(.purple)
+                            .foregroundStyle(AppTheme.primary)
                             .background(Circle().fill(.white).padding(2))
                     }
             }
@@ -316,7 +360,7 @@ struct SubjectCard: View {
                     .frame(width: 44, height: 44)
                     .background(
                         LinearGradient(
-                            colors: [.purple, .blue],
+                            colors: [AppTheme.primary, AppTheme.primaryDark],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -339,7 +383,7 @@ struct SubjectCard: View {
                     Image(systemName: "arrow.right")
                         .font(.caption)
                 }
-                .foregroundStyle(.purple)
+                .foregroundStyle(AppTheme.primary)
             }
             .padding(16)
             .frame(width: 150, height: 180)
@@ -363,7 +407,7 @@ struct AddSubjectCard: View {
             VStack(spacing: 12) {
                 Image(systemName: "plus.circle.fill")
                     .font(.largeTitle)
-                    .foregroundStyle(.purple.opacity(0.4))
+                    .foregroundStyle(AppTheme.primary.opacity(0.4))
                 
                 Text("Add Subject")
                     .font(.subheadline)
@@ -423,7 +467,7 @@ struct SubjectBarChart: View {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(
                                 LinearGradient(
-                                    colors: [.purple, .blue],
+                                    colors: [AppTheme.primary, AppTheme.primaryDark],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
@@ -441,3 +485,46 @@ struct SubjectBarChart: View {
         }
     }
 }
+// MARK: - Mini Flashcard
+
+struct MiniFlashcard: View {
+    let card: Flashcard
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Subject tag
+            Text(card.subject)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(AppTheme.primary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(AppTheme.primary.opacity(0.1))
+                .clipShape(Capsule())
+            
+            Text(card.front)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.primary)
+                .lineLimit(3)
+            
+            Spacer()
+            
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.turn.up.right")
+                    .font(.caption2)
+                Text("Tap to review")
+                    .font(.caption2)
+            }
+            .foregroundStyle(.tertiary)
+        }
+        .padding(12)
+        .frame(width: 140, height: 120)
+        .background(Color(uiColor: .systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(AppTheme.primary.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.04), radius: 6, y: 2)
+    }
+}
+

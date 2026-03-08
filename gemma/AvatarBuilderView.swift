@@ -30,8 +30,8 @@ struct AvatarBuilderView: View {
                                 .font(.subheadline.weight(selectedCategory == index ? .semibold : .regular))
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 8)
-                                .background(selectedCategory == index ? Color.purple.opacity(0.15) : Color.secondary.opacity(0.08))
-                                .foregroundStyle(selectedCategory == index ? .purple : .secondary)
+                                .background(selectedCategory == index ? AppTheme.primary.opacity(0.15) : Color.secondary.opacity(0.08))
+                                .foregroundStyle(selectedCategory == index ? AppTheme.primary : .secondary)
                                 .clipShape(Capsule())
                         }
                     }
@@ -66,7 +66,7 @@ struct AvatarBuilderView: View {
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(Color.purple)
+                    .background(AppTheme.primary)
                     .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
             }
@@ -180,11 +180,11 @@ struct AvatarBuilderView: View {
                     icon(index)
                         .font(.title2)
                         .frame(width: 56, height: 56)
-                        .background(selected == index ? Color.purple.opacity(0.15) : Color(uiColor: .secondarySystemBackground))
+                        .background(selected == index ? AppTheme.primary.opacity(0.15) : Color(uiColor: .secondarySystemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
-                                .stroke(selected == index ? Color.purple : Color.clear, lineWidth: 2)
+                                .stroke(selected == index ? AppTheme.primary : Color.clear, lineWidth: 2)
                         )
                 }
                 .foregroundStyle(.primary)
@@ -203,7 +203,7 @@ struct AvatarBuilderView: View {
                         .frame(width: 36, height: 36)
                         .overlay(
                             Circle()
-                                .stroke(selected == index ? Color.purple : Color.clear, lineWidth: 3)
+                                .stroke(selected == index ? AppTheme.primary : Color.clear, lineWidth: 3)
                                 .padding(2)
                         )
                         .overlay(

@@ -29,7 +29,7 @@ struct SessionHistoryView: View {
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(AppTheme.primary)
                 }
             }
             .padding(.horizontal, 16)
@@ -61,7 +61,7 @@ struct SessionHistoryView: View {
                         }
                         .listRowBackground(
                             session.id == currentSessionId
-                            ? Color.purple.opacity(0.1)
+                            ? AppTheme.primary.opacity(0.1)
                             : Color.clear
                         )
                     }
@@ -105,7 +105,7 @@ struct SessionRow: View {
                 
                 if isSelected {
                     Circle()
-                        .fill(.purple)
+                        .fill(AppTheme.primary)
                         .frame(width: 8, height: 8)
                 }
             }

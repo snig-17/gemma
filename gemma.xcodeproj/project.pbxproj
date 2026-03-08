@@ -6,7 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		F4C441FF2F5D8AFC00DB925B /* FlashcardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4C441FE2F5D8AFC00DB925B /* FlashcardView.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
+		F4C441FE2F5D8AFC00DB925B /* FlashcardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlashcardView.swift; sourceTree = "<group>"; };
 		F4E342F22F5C7A99002996BB /* gemma.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = gemma.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -34,6 +39,7 @@
 			children = (
 				F4E342F42F5C7A99002996BB /* gemma */,
 				F4E342F32F5C7A99002996BB /* Products */,
+				F4C441FE2F5D8AFC00DB925B /* FlashcardView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -119,6 +125,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F4C441FF2F5D8AFC00DB925B /* FlashcardView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
