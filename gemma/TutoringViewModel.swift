@@ -268,8 +268,13 @@ class TutoringViewModel {
     }
     
     func saveDrawingToSession() {
-        currentSession.drawingData = canvasView.drawing.dataRepresentation()
+        let data = canvasView.drawing.dataRepresentation()
+        currentSession.drawingData = data
+        currentSession.hasDrawing = true
         saveSessions()
+        Task {
+            try? await FirebaseService.shared.uploadDrawing(data, sessionId: currentSession.id.uuidString)
+        }
     }
     
     /// Export the current whiteboard as a PDF, returns the file URL
@@ -376,9 +381,19 @@ class TutoringViewModel {
     }
     
     func loadDrawingFromSession() {
+        // Try local data first, then Firebase Storage
         if let data = currentSession.drawingData,
            let drawing = try? PKDrawing(data: data) {
             canvasView.drawing = drawing
+        } else if currentSession.hasDrawing {
+            Task { @MainActor in
+                if let data = try? await FirebaseService.shared.downloadDrawing(sessionId: currentSession.id.uuidString),
+                   let drawing = try? PKDrawing(data: data) {
+                    canvasView.drawing = drawing
+                } else {
+                    canvasView.drawing = PKDrawing()
+                }
+            }
         } else {
             canvasView.drawing = PKDrawing()
         }
@@ -407,6 +422,7 @@ class TutoringViewModel {
     }
     
     func deleteSession(at offsets: IndexSet) {
+        let sessionsToDelete = offsets.map { sessions[$0] }
         let deletingCurrent = offsets.contains(where: { sessions[$0].id == currentSession.id })
         sessions.remove(atOffsets: offsets)
         
@@ -417,7 +433,11 @@ class TutoringViewModel {
                 selectSession(sessions[0])
             }
         }
-        saveSessions()
+        
+        // Delete from Firebase
+        for session in sessionsToDelete {
+            Task { try? await FirebaseService.shared.deleteSession(session) }
+        }
     }
     
     // MARK: - Flashcard Management
@@ -425,6 +445,7 @@ class TutoringViewModel {
     func deleteFlashcard(_ flashcard: Flashcard) {
         flashcards.removeAll { $0.id == flashcard.id }
         saveFlashcards()
+        Task { try? await FirebaseService.shared.deleteFlashcard(flashcard) }
     }
     
     func markReviewed(_ flashcard: Flashcard) {
@@ -432,67 +453,51 @@ class TutoringViewModel {
             flashcards[index].reviewCount += 1
             flashcards[index].lastReviewed = Date()
             saveFlashcards()
+            Task { try? await FirebaseService.shared.updateFlashcard(flashcards[index]) }
         }
     }
     
-    // MARK: - Persistence
-    
-    private var sessionsURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("tutoring_sessions.json")
-    }
+    // MARK: - Persistence (Firebase)
     
     func saveSessions() {
         if let index = sessions.firstIndex(where: { $0.id == currentSession.id }) {
             sessions[index] = currentSession
         }
-        
-        do {
-            let data = try JSONEncoder().encode(sessions)
-            try data.write(to: sessionsURL)
-        } catch {
-            print("Failed to save sessions: \(error)")
+        Task {
+            try? await FirebaseService.shared.saveSession(currentSession)
         }
     }
     
     func loadSessions() {
-        guard FileManager.default.fileExists(atPath: sessionsURL.path) else { return }
-        do {
-            let data = try Data(contentsOf: sessionsURL)
-            let decoded = try JSONDecoder().decode([TutoringSession].self, from: data)
-            if !decoded.isEmpty {
-                sessions = decoded
-                currentSession = decoded[0]
-                messages = currentSession.messages
+        Task { @MainActor in
+            do {
+                let loaded = try await FirebaseService.shared.loadSessions(forSubject: subject.name)
+                if !loaded.isEmpty {
+                    sessions = loaded
+                    currentSession = loaded[0]
+                    messages = currentSession.messages
+                }
+            } catch {
+                print("[Firebase] Failed to load sessions: \(error.localizedDescription)")
             }
-        } catch {
-            print("Failed to load sessions: \(error)")
         }
     }
     
-    // MARK: - Flashcard Persistence
-    
-    private var flashcardsURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("flashcards.json")
-    }
+    // MARK: - Flashcard Persistence (Firebase)
     
     func saveFlashcards() {
-        do {
-            let data = try JSONEncoder().encode(flashcards)
-            try data.write(to: flashcardsURL)
-        } catch {
-            print("Failed to save flashcards: \(error)")
+        Task {
+            try? await FirebaseService.shared.saveFlashcards(flashcards)
         }
     }
     
     func loadFlashcards() {
-        guard FileManager.default.fileExists(atPath: flashcardsURL.path) else { return }
-        do {
-            let data = try Data(contentsOf: flashcardsURL)
-            flashcards = try JSONDecoder().decode([Flashcard].self, from: data)
-        } catch {
-            print("Failed to load flashcards: \(error)")
+        Task { @MainActor in
+            do {
+                flashcards = try await FirebaseService.shared.loadFlashcards()
+            } catch {
+                print("[Firebase] Failed to load flashcards: \(error.localizedDescription)")
+            }
         }
     }
 }

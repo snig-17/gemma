@@ -289,6 +289,21 @@ struct LandingPageView: View {
                 
                 SubjectBarChart(subjects: profile.subjects)
             }
+            
+            Divider()
+                .padding(.horizontal, 24)
+            
+            // Sign out
+            Button {
+                FirebaseService.shared.signOut()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                    Text("Sign Out")
+                }
+                .font(.caption)
+                .foregroundStyle(.red)
+            }
         }
         .padding(24)
         .background(Color(uiColor: .systemBackground))

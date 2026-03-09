@@ -43,8 +43,14 @@ struct TutoringSession: Identifiable, Codable {
     var subject: String
     var messages: [ChatMessage]
     var drawingData: Data?
+    var hasDrawing: Bool
     let createdAt: Date
     var lastModified: Date
+    
+    // Exclude drawingData from Codable (stored in Firebase Storage separately)
+    enum CodingKeys: String, CodingKey {
+        case id, title, subject, messages, hasDrawing, createdAt, lastModified
+    }
     
     init(id: UUID = UUID(), title: String = "New Session", subject: String = "General", messages: [ChatMessage] = [], drawingData: Data? = nil) {
         self.id = id
@@ -52,6 +58,7 @@ struct TutoringSession: Identifiable, Codable {
         self.subject = subject
         self.messages = messages
         self.drawingData = drawingData
+        self.hasDrawing = drawingData != nil
         self.createdAt = Date()
         self.lastModified = Date()
     }

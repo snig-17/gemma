@@ -6,9 +6,14 @@
 //
 
 import SwiftUI
+import Firebase
 
 @main
 struct gemmaApp: App {
+    init() {
+        FirebaseApp.configure()
+    }
+    
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -19,111 +24,120 @@ struct gemmaApp: App {
 // MARK: - Root View (Navigation Controller)
 
 struct RootView: View {
+    @State private var firebaseService = FirebaseService.shared
     @State private var profile = UserProfile()
     @State private var activeSubject: Subject?
     @State private var flashcards: [Flashcard] = []
+    @State private var hasLoadedData = false
     
     var body: some View {
-        if !profile.hasCompletedOnboarding {
-            OnboardingView(profile: $profile) {
-                saveProfile()
-            }
-            .transition(.move(edge: .trailing))
-        } else if let subject = activeSubject {
-            ContentView(
-                subject: subject,
-                profile: $profile,
-                flashcards: $flashcards,
-                onEndSession: { updatedSubject, updatedFlashcards in
-                    // Update subject stats
-                    if let index = profile.subjects.firstIndex(where: { $0.id == updatedSubject.id }) {
-                        profile.subjects[index] = updatedSubject
-                    }
-                    // Merge flashcards from session
-                    flashcards = updatedFlashcards
-                    saveFlashcards()
-                    profile.recordActivity()
-                    saveProfile()
-                    activeSubject = nil
+        Group {
+            if firebaseService.isLoading {
+                // Splash / loading screen
+                VStack(spacing: 16) {
+                    Image("GemmaLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 80)
+                    ProgressView()
                 }
-            )
-            .transition(.move(edge: .trailing))
-        } else {
-            LandingPageView(
-                profile: $profile,
-                flashcards: flashcards,
-                onStartSession: { subject in
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        activeSubject = subject
-                    }
-                },
-                onSaveProfile: {
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(uiColor: .systemGroupedBackground))
+            } else if !firebaseService.isAuthenticated {
+                AuthView()
+            } else if !profile.hasCompletedOnboarding {
+                OnboardingView(profile: $profile) {
                     saveProfile()
-                },
-                onDeleteFlashcard: { card in
-                    flashcards.removeAll { $0.id == card.id }
-                    saveFlashcards()
-                },
-                onMarkReviewed: { card in
-                    if let index = flashcards.firstIndex(where: { $0.id == card.id }) {
-                        flashcards[index].reviewCount += 1
-                        flashcards[index].lastReviewed = Date()
+                }
+                .transition(.move(edge: .trailing))
+            } else if let subject = activeSubject {
+                ContentView(
+                    subject: subject,
+                    profile: $profile,
+                    flashcards: $flashcards,
+                    onEndSession: { updatedSubject, updatedFlashcards in
+                        // Update subject stats
+                        if let index = profile.subjects.firstIndex(where: { $0.id == updatedSubject.id }) {
+                            profile.subjects[index] = updatedSubject
+                        }
+                        // Merge flashcards from session
+                        flashcards = updatedFlashcards
                         saveFlashcards()
+                        profile.recordActivity()
+                        saveProfile()
+                        activeSubject = nil
                     }
-                }
-            )
-            .transition(.move(edge: .leading))
+                )
+                .transition(.move(edge: .trailing))
+            } else {
+                LandingPageView(
+                    profile: $profile,
+                    flashcards: flashcards,
+                    onStartSession: { subject in
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            activeSubject = subject
+                        }
+                    },
+                    onSaveProfile: {
+                        saveProfile()
+                    },
+                    onDeleteFlashcard: { card in
+                        flashcards.removeAll { $0.id == card.id }
+                        saveFlashcards()
+                        Task { try? await firebaseService.deleteFlashcard(card) }
+                    },
+                    onMarkReviewed: { card in
+                        if let index = flashcards.firstIndex(where: { $0.id == card.id }) {
+                            flashcards[index].reviewCount += 1
+                            flashcards[index].lastReviewed = Date()
+                            saveFlashcards()
+                        }
+                    }
+                )
+                .transition(.move(edge: .leading))
+            }
+        }
+        .task {
+            firebaseService.listenToAuthState()
+        }
+        .onChange(of: firebaseService.isAuthenticated) { _, isAuth in
+            if isAuth {
+                Task { await loadUserData() }
+            } else {
+                // Reset state on sign out
+                profile = UserProfile()
+                flashcards = []
+                activeSubject = nil
+                hasLoadedData = false
+            }
         }
     }
     
-    // MARK: - Persistence
+    // MARK: - Firebase Persistence
     
-    private var profileURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("user_profile.json")
+    private func loadUserData() async {
+        guard !hasLoadedData else { return }
+        do {
+            if let loadedProfile = try await firebaseService.loadProfile() {
+                await MainActor.run { profile = loadedProfile }
+            }
+            let loadedFlashcards = try await firebaseService.loadFlashcards()
+            await MainActor.run {
+                flashcards = loadedFlashcards
+                hasLoadedData = true
+            }
+        } catch {
+            print("[Firebase] Failed to load user data: \(error.localizedDescription)")
+            await MainActor.run { hasLoadedData = true }
+        }
     }
     
     private func saveProfile() {
-        do {
-            let data = try JSONEncoder().encode(profile)
-            try data.write(to: profileURL)
-        } catch {
-            print("Failed to save profile: \(error)")
-        }
-    }
-    
-    private var flashcardsURL: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("flashcards.json")
+        Task { try? await firebaseService.saveProfile(profile) }
     }
     
     private func saveFlashcards() {
-        do {
-            let data = try JSONEncoder().encode(flashcards)
-            try data.write(to: flashcardsURL)
-        } catch {
-            print("Failed to save flashcards: \(error)")
-        }
-    }
-    
-    init() {
-        let docsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        
-        // Load profile
-        let profilePath = docsDir.appendingPathComponent("user_profile.json")
-        if FileManager.default.fileExists(atPath: profilePath.path),
-           let data = try? Data(contentsOf: profilePath),
-           let decoded = try? JSONDecoder().decode(UserProfile.self, from: data) {
-            _profile = State(initialValue: decoded)
-        }
-        
-        // Load flashcards
-        let flashcardsPath = docsDir.appendingPathComponent("flashcards.json")
-        if FileManager.default.fileExists(atPath: flashcardsPath.path),
-           let data = try? Data(contentsOf: flashcardsPath),
-           let decoded = try? JSONDecoder().decode([Flashcard].self, from: data) {
-            _flashcards = State(initialValue: decoded)
-        }
+        Task { try? await firebaseService.saveFlashcards(flashcards) }
     }
 }
 
