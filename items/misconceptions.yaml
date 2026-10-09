@@ -1,0 +1,358 @@
+# Misconception catalogue.
+#
+# Each entry is a SPECIFIC, reproducible error — not a topic and not "didn't
+# understand". The test for inclusion: can you write a function that applies
+# this error to a problem and produces a definite wrong answer? If not, it is
+# too vague to belong here.
+#
+# `eedi_id` is reserved for mapping onto Eedi's open Misconception Graph
+# (8,000+ misconceptions from ~200m responses, CC BY 4.0). All null for now —
+# see docs/DESIGN.md §2 for the licence checklist that blocks that import.
+# Once mapped, Eedi's id becomes the canonical key and ours becomes an alias.
+#
+# `skill` must exist in curriculum/skills.yaml. Enforced by generate.py.
+
+misconceptions:
+
+  # ── number: negatives and order of operations ──────────────────────────
+  - id: m.neg.subtract_as_add
+    skill: num.neg.add_sub
+    title: Treats subtracting a negative as subtracting
+    eedi_id: null
+
+  - id: m.neg.ignores_sign
+    skill: num.neg.add_sub
+    title: Ignores the minus sign and works with magnitudes
+    eedi_id: null
+
+  - id: m.neg.product_stays_negative
+    skill: num.neg.mul_div
+    title: Thinks a negative times a negative stays negative
+    eedi_id: null
+
+  - id: m.bidmas.left_to_right
+    skill: num.order_of_ops
+    title: Works strictly left to right, ignoring operation priority
+    eedi_id: null
+
+  - id: m.bidmas.add_before_multiply
+    skill: num.order_of_ops
+    title: Adds before multiplying
+    eedi_id: null
+
+  # ── number: fractions ──────────────────────────────────────────────────
+  - id: m.frac.add_denominators
+    skill: num.frac.add_sub_same
+    title: Adds the denominators as well as the numerators
+    eedi_id: null
+
+  - id: m.frac.add_across
+    skill: num.frac.add_sub_diff
+    title: Adds numerators and denominators separately without a common denominator
+    eedi_id: null
+
+  - id: m.frac.common_denom_only
+    skill: num.frac.add_sub_diff
+    title: Finds a common denominator but does not scale the numerators
+    eedi_id: null
+
+  - id: m.frac.cross_multiply
+    skill: num.frac.multiply
+    title: Cross-multiplies instead of multiplying numerators and denominators
+    eedi_id: null
+
+  - id: m.frac.divide_directly
+    skill: num.frac.divide
+    title: Divides numerators and denominators instead of multiplying by the reciprocal
+    eedi_id: null
+
+  - id: m.frac.of_divide_by_numerator
+    skill: num.frac.of_amount
+    title: Divides by the numerator and multiplies by the denominator
+    eedi_id: null
+
+  # ── number: rounding and place value ───────────────────────────────────
+  - id: m.round.truncates
+    skill: num.round.dp
+    title: Truncates instead of rounding
+    eedi_id: null
+
+  - id: m.round.always_up
+    skill: num.round.dp
+    title: Always rounds up regardless of the following digit
+    eedi_id: null
+
+  - id: m.sf.counts_from_decimal_point
+    skill: num.round.sf
+    title: Counts significant figures from the decimal point, including leading zeros
+    eedi_id: null
+
+  - id: m.sf.treats_as_dp
+    skill: num.round.sf
+    title: Treats significant figures as decimal places
+    eedi_id: null
+
+  # ── number: percentages ────────────────────────────────────────────────
+  - id: m.pct.divides_by_percentage
+    skill: num.pct.of_amount
+    title: Divides the amount by the percentage
+    eedi_id: null
+
+  - id: m.pct.moves_decimal_wrong
+    skill: num.pct.of_amount
+    title: Misplaces the decimal point when converting the percentage
+    eedi_id: null
+
+  # ── number: indices and standard form ──────────────────────────────────
+  - id: m.indices.multiplies_exponents
+    skill: num.indices.laws
+    title: Multiplies the exponents when multiplying powers
+    eedi_id: null
+
+  - id: m.indices.multiplies_bases
+    skill: num.indices.laws
+    title: Multiplies the bases as well as adding the exponents
+    eedi_id: null
+
+  - id: m.indices.zero_is_zero
+    skill: num.indices.zero_neg
+    title: Thinks anything to the power zero is zero
+    eedi_id: null
+
+  - id: m.indices.negative_means_negative
+    skill: num.indices.zero_neg
+    title: Thinks a negative index makes the answer negative
+    eedi_id: null
+
+  - id: m.std_form.power_wrong_direction
+    skill: num.standard_form
+    title: Uses the wrong sign for the power of ten
+    eedi_id: null
+
+  - id: m.std_form.mantissa_not_normalised
+    skill: num.standard_form
+    title: Leaves a mantissa outside the range 1 to 10
+    eedi_id: null
+
+  # ── number: factors, multiples, squares ────────────────────────────────
+  - id: m.hcf_lcm.swapped
+    skill: num.hcf
+    title: Gives the lowest common multiple instead of the highest common factor
+    eedi_id: null
+
+  - id: m.lcm.multiplies_the_numbers
+    skill: num.lcm
+    title: Multiplies the two numbers instead of finding the lowest common multiple
+    eedi_id: null
+
+  - id: m.square.doubles
+    skill: num.squares
+    title: Doubles instead of squaring
+    eedi_id: null
+
+  # ── algebra: manipulation ──────────────────────────────────────────────
+  - id: m.collect.combines_unlike_terms
+    skill: alg.collect_like_terms
+    title: Combines unlike terms
+    eedi_id: null
+
+  - id: m.sub.digit_concatenation
+    skill: alg.substitute
+    title: Writes the coefficient next to the value instead of multiplying
+    eedi_id: null
+
+  - id: m.sub.squares_the_coefficient
+    skill: alg.substitute
+    title: Squares the coefficient as well as the variable
+    eedi_id: null
+
+  - id: m.expand.first_term_only
+    skill: alg.expand.single
+    title: Multiplies only the first term inside the bracket
+    eedi_id: null
+
+  - id: m.expand.sign_not_distributed
+    skill: alg.expand.single
+    title: Does not apply a negative multiplier to every term
+    eedi_id: null
+
+  - id: m.expand.no_middle_terms
+    skill: alg.expand.double
+    title: Multiplies only first by first and last by last
+    eedi_id: null
+
+  - id: m.factorise.partial_factor
+    skill: alg.factorise.common
+    title: Takes out a factor that is not the highest common factor
+    eedi_id: null
+
+  - id: m.factorise.signs_swapped
+    skill: alg.factorise.quadratic
+    title: Swaps the signs in the factorised brackets
+    eedi_id: null
+
+  # ── algebra: equations and inequalities ────────────────────────────────
+  - id: m.eq.same_operation_both_sides
+    skill: alg.eq.one_step
+    title: Applies the same operation instead of the inverse
+    eedi_id: null
+
+  - id: m.eq.wrong_inverse_order
+    skill: alg.eq.two_step
+    title: Undoes the operations in the wrong order
+    eedi_id: null
+
+  - id: m.eq.sign_unchanged_on_move
+    skill: alg.eq.two_step
+    title: Moves a term across the equals sign without changing its sign
+    eedi_id: null
+
+  - id: m.ineq.no_flip_on_negative
+    skill: alg.ineq.solve_linear
+    title: Does not reverse the inequality when dividing by a negative
+    eedi_id: null
+
+  - id: m.quad.roots_keep_bracket_sign
+    skill: alg.quadratic.solve_factorising
+    title: Reads the roots straight off the brackets without changing sign
+    eedi_id: null
+
+  # ── algebra: sequences and graphs ──────────────────────────────────────
+  - id: m.nth.constant_is_first_term
+    skill: alg.seq.nth_term_linear
+    title: Uses the first term as the constant instead of subtracting the difference
+    eedi_id: null
+
+  - id: m.nth.difference_only
+    skill: alg.seq.nth_term_linear
+    title: Gives only the common difference times n, omitting the constant
+    eedi_id: null
+
+  - id: m.gradient.run_over_rise
+    skill: alg.graph.gradient
+    title: Divides the horizontal change by the vertical change
+    eedi_id: null
+
+  - id: m.gradient.sign_ignored
+    skill: alg.graph.gradient
+    title: Gives a positive gradient for a line sloping downwards
+    eedi_id: null
+
+  # ── ratio and proportion ───────────────────────────────────────────────
+  - id: m.ratio.divides_by_one_part
+    skill: ratio.share
+    title: Divides the total by one part of the ratio instead of the sum of the parts
+    eedi_id: null
+
+  - id: m.ratio.shares_equally
+    skill: ratio.share
+    title: Splits the total equally, ignoring the ratio
+    eedi_id: null
+
+  - id: m.pct.change_forgets_original
+    skill: ratio.pct.increase_decrease
+    title: Gives the change rather than the new amount
+    eedi_id: null
+
+  - id: m.pct.reverse_applied_forwards
+    skill: ratio.pct.reverse
+    title: Applies the percentage change forwards instead of reversing it
+    eedi_id: null
+
+  - id: m.interest.simple_for_compound
+    skill: ratio.compound_interest
+    title: Calculates simple interest when compound interest is required
+    eedi_id: null
+
+  - id: m.speed.formula_inverted
+    skill: ratio.compound_units
+    title: Divides time by distance instead of distance by time
+    eedi_id: null
+
+  # ── geometry ───────────────────────────────────────────────────────────
+  - id: m.angle.triangle_sums_360
+    skill: geo.angles.triangle
+    title: Thinks the angles in a triangle sum to 360 degrees
+    eedi_id: null
+
+  - id: m.polygon.interior_uses_n
+    skill: geo.polygon.interior
+    title: Uses n instead of n minus 2 in the interior angle sum
+    eedi_id: null
+
+  - id: m.area.triangle_forgets_half
+    skill: geo.area.triangle
+    title: Omits the factor of one half
+    eedi_id: null
+
+  - id: m.area.trapezium_forgets_half
+    skill: geo.area.trapezium
+    title: Adds the parallel sides and multiplies by the height without halving
+    eedi_id: null
+
+  - id: m.circle.area_uses_diameter
+    skill: geo.circle.area
+    title: Substitutes the diameter into the area formula instead of the radius
+    eedi_id: null
+
+  - id: m.circle.area_formula_is_circumference
+    skill: geo.circle.area
+    title: Uses two pi r instead of pi r squared
+    eedi_id: null
+
+  - id: m.circle.circumference_uses_radius
+    skill: geo.circle.circumference
+    title: Uses the radius in place of the diameter
+    eedi_id: null
+
+  - id: m.pythag.always_adds
+    skill: geo.pythagoras.shorter_side
+    title: Adds the squares when finding a shorter side
+    eedi_id: null
+
+  - id: m.prism.volume_is_perimeter_times_length
+    skill: geo.volume.prism
+    title: Multiplies the perimeter of the cross-section by the length
+    eedi_id: null
+
+  # ── probability ────────────────────────────────────────────────────────
+  - id: m.prob.adds_independent_events
+    skill: prob.tree_diagrams
+    title: Adds probabilities of independent events instead of multiplying
+    eedi_id: null
+
+  - id: m.prob.expected_uses_count
+    skill: prob.expected_outcomes
+    title: Gives the number of outcomes rather than multiplying by the probability
+    eedi_id: null
+
+  # ── statistics ─────────────────────────────────────────────────────────
+  - id: m.mean.divides_by_wrong_count
+    skill: stats.mean
+    title: Divides the total by the wrong number of values
+    eedi_id: null
+
+  - id: m.median.no_sort
+    skill: stats.median
+    title: Takes the middle of the unsorted list
+    eedi_id: null
+
+  - id: m.median.even_takes_lower
+    skill: stats.median
+    title: Takes the lower of the two middle values instead of their mean
+    eedi_id: null
+
+  - id: m.range.adds_extremes
+    skill: stats.range
+    title: Adds the largest and smallest values instead of subtracting
+    eedi_id: null
+
+  - id: m.freq_mean.divides_by_rows
+    skill: stats.mean.frequency_table
+    title: Divides by the number of rows instead of the total frequency
+    eedi_id: null
+
+  - id: m.freq_mean.ignores_frequency
+    skill: stats.mean.frequency_table
+    title: Averages the values without weighting by frequency
+    eedi_id: null
