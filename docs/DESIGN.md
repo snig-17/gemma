@@ -1,6 +1,7 @@
 # Design — coverage-aware adaptive learning platform (GCSE)
 
-**Status:** design, not built. Nothing in this document is implemented.
+**Status:** design. The skill graph in `curriculum/` is built and validated;
+everything else is unimplemented.
 
 **Scope note.** This specifies a *new* product and does not describe the Swift app in this repository. The iOS app at the repo root is the hackathon artifact — see `CODE_REVIEW.md`. Two ideas carry forward from it: photographed work as the primary input, and Socratic tutoring that withholds answers. Everything else here is new.
 
@@ -159,7 +160,17 @@ Accumulating how N English schools actually sequence GCSE maths produces a datas
 
 The demo that sells the product. *"Twenty minutes and it knew exactly what was wrong with me"* is the thing a student screenshots.
 
-Target: locate a student across ~250 skills in **~25 items, 15–20 minutes**.
+**Measured against the real graph** by `curriculum/simulate_diagnostic.py`
+(183 Foundation skills, 500 synthetic students): the knee is at **15–20 items**,
+reaching 90.4% balanced accuracy at 15 and plateauing at ~91% by 25. Baseline
+with no items, prior alone, is 72.7%. See `curriculum/README.md` for the table
+and the caveats — chiefly that this measures the algorithm against a *model*
+of a student, so treat ~90% as an upper bound.
+
+Judge it on **balanced accuracy** (mean of sensitivity and specificity), never
+raw accuracy: raw reads ~87% on this graph but is inflated by easy negatives on
+deep skills almost nobody masters, and under raw accuracy the depth prior below
+looks worthless when it is in fact worth ~3.4 points.
 
 Naive per-skill testing needs 250 items. The prerequisite DAG makes it a search problem instead — a correct answer deep in the graph is strong evidence about everything upstream.
 
@@ -179,10 +190,16 @@ while items_used < budget and max_uncertainty > threshold:
         for each ancestor a at distance d:  P(a) ← P(a) + (1−P(a)) · γ^d
     on incorrect:
         P(s) ← low
-        for each descendant x:              P(x) ← P(x) · γ^d
+        for each descendant x at distance d:  P(x) ← P(x) · (1 − γ^d)
         # ancestors unchanged — descend toward prerequisites next
         push ancestors onto probe queue
 ```
+
+`γ ≈ 0.55`. Note the asymmetry in form: credit adds a decaying share of the
+remaining gap, blame multiplies by a decaying factor. Both must have an effect
+that **shrinks** with distance. An earlier draft of this document wrote the
+descendant rule as `P(x) ← P(x) · γ^d`, which makes distant descendants shrink
+*more* than near ones — backwards, and caught only by implementing it.
 
 It is a binary search down the prerequisite DAG. Two further points:
 
@@ -453,7 +470,10 @@ Shippable in a term by one person, and contains the whole loop.
 
 ## 7. Build order
 
-1. **Skill graph** for the chosen tier, with the invariant tests. ~1 week.
+1. ~~**Skill graph** for the chosen tier, with the invariant tests.~~ **Done** —
+   183 Foundation skills in `curriculum/skills.yaml`, invariants enforced by
+   `curriculum/validate.py`, loadable via `curriculum/to_sql.py`. Outstanding:
+   the `spec_ref` values are unverified against the DfE document.
 2. **Import the Eedi graph**, map to skills, settle attribution. Blocked on the licence checklist in §2.
 3. **Item generation + symbolic verification.** Nothing works without verified items, and this is the long pole.
 4. **`attempt` logging and the evaluation harness** — before the model, so there is never a period of flying blind.

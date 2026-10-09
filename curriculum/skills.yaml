@@ -1,0 +1,1531 @@
+# GCSE Mathematics skill graph — Foundation tier
+#
+# Nodes are ATOMIC skills, finer-grained than spec statements. One spec
+# statement (e.g. A4 "simplify and manipulate algebraic expressions") maps to
+# several skills here, so skill -> spec_ref is many-to-one.
+#
+# spec_ref uses the DfE "Mathematics GCSE subject content" reference letters
+# (N/A/R/G/P/S), which AQA states are common to all exam boards. See
+# curriculum/README.md — EVERY spec_ref IN THIS FILE IS UNVERIFIED best-effort
+# and must be checked against the DfE document before it is relied on.
+#
+# spec_ref: null means the skill is assumed prior knowledge (KS2/KS3) and is
+# not in the GCSE spec. Those are the `foundation` coverage bucket in
+# docs/DESIGN.md §3.2 — always in scope, because forgotten KS2/KS3 number work
+# is where the diagnostic finds the real damage.
+#
+# Invariants enforced by validate.py:
+#   - acyclic
+#   - every KS4 node reachable from at least one KS2/KS3 root
+#   - no node has more than 4 direct prerequisites
+#   - no duplicate ids, no dangling prereq references
+#   - a foundation-tier skill never depends on a higher-only skill
+#
+# Fields:
+#   id        stable, dot-separated, never renamed once live (it is a DB key)
+#   title     student-facing
+#   domain    number | algebra | ratio | geometry | probability | statistics
+#   key_stage KS2 | KS3 | KS4
+#   tier      foundation | higher   (Foundation content is a subset of Higher)
+#   spec_ref  DfE reference, or null for pre-GCSE
+#   prereqs   list of ids
+
+skills:
+
+  # ──────────────────────────────────────────────────────────────────────
+  # NUMBER
+  # ──────────────────────────────────────────────────────────────────────
+
+  - id: num.pv.integers
+    title: Place value with integers
+    domain: number
+    key_stage: KS2
+    tier: foundation
+    spec_ref: null
+    prereqs: []
+
+  - id: num.int.add_sub
+    title: Add and subtract integers
+    domain: number
+    key_stage: KS2
+    tier: foundation
+    spec_ref: null
+    prereqs: [num.pv.integers]
+
+  - id: num.int.multiply
+    title: Multiply integers
+    domain: number
+    key_stage: KS2
+    tier: foundation
+    spec_ref: null
+    prereqs: [num.int.add_sub]
+
+  - id: num.int.divide
+    title: Divide integers, including remainders
+    domain: number
+    key_stage: KS2
+    tier: foundation
+    spec_ref: null
+    prereqs: [num.int.multiply]
+
+  - id: num.order.integers
+    title: Order positive and negative integers
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N1
+    prereqs: [num.pv.integers]
+
+  - id: num.neg.add_sub
+    title: Add and subtract negative numbers
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.int.add_sub, num.order.integers]
+
+  - id: num.neg.mul_div
+    title: Multiply and divide negative numbers
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.int.multiply, num.int.divide, num.neg.add_sub]
+
+  - id: num.order_of_ops
+    title: Order of operations (BIDMAS)
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N3
+    prereqs: [num.int.multiply, num.int.divide, num.neg.add_sub]
+
+  - id: num.factors
+    title: Factors of a number
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N4
+    prereqs: [num.int.divide]
+
+  - id: num.multiples
+    title: Multiples of a number
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N4
+    prereqs: [num.int.multiply]
+
+  - id: num.primes
+    title: Recognise prime numbers
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N4
+    prereqs: [num.factors]
+
+  - id: num.prime_factorisation
+    title: Write a number as a product of its prime factors
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N4
+    prereqs: [num.primes, num.factors]
+
+  - id: num.hcf
+    title: Highest common factor
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N4
+    prereqs: [num.prime_factorisation]
+
+  - id: num.lcm
+    title: Lowest common multiple
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N4
+    prereqs: [num.prime_factorisation, num.multiples]
+
+  # fractions
+  - id: num.frac.notation
+    title: Fraction notation and equivalent fractions
+    domain: number
+    key_stage: KS2
+    tier: foundation
+    spec_ref: null
+    prereqs: [num.int.divide]
+
+  - id: num.frac.simplify
+    title: Simplify a fraction to its lowest terms
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N3
+    prereqs: [num.frac.notation, num.factors]
+
+  - id: num.frac.compare
+    title: Compare and order fractions
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N1
+    prereqs: [num.frac.notation, num.lcm]
+
+  - id: num.frac.mixed
+    title: Convert between mixed numbers and improper fractions
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.frac.notation, num.int.divide]
+
+  - id: num.frac.of_amount
+    title: Find a fraction of an amount
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.frac.notation, num.int.multiply, num.int.divide]
+
+  - id: num.frac.add_sub_same
+    title: Add and subtract fractions with the same denominator
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.frac.notation]
+
+  - id: num.frac.add_sub_diff
+    title: Add and subtract fractions with different denominators
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.frac.add_sub_same, num.frac.compare, num.frac.simplify]
+
+  - id: num.frac.multiply
+    title: Multiply fractions
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.frac.notation, num.int.multiply, num.frac.simplify]
+
+  - id: num.frac.divide
+    title: Divide fractions
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.frac.multiply]
+
+  - id: num.frac.mixed_arithmetic
+    title: Arithmetic with mixed numbers
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.frac.mixed, num.frac.add_sub_diff, num.frac.multiply]
+
+  # decimals
+  - id: num.dec.pv
+    title: Place value with decimals
+    domain: number
+    key_stage: KS2
+    tier: foundation
+    spec_ref: null
+    prereqs: [num.pv.integers]
+
+  - id: num.dec.order
+    title: Order decimals
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N1
+    prereqs: [num.dec.pv]
+
+  - id: num.dec.add_sub
+    title: Add and subtract decimals
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.dec.pv, num.int.add_sub]
+
+  - id: num.dec.multiply
+    title: Multiply decimals
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.dec.pv, num.int.multiply]
+
+  - id: num.dec.divide
+    title: Divide decimals
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N2
+    prereqs: [num.dec.multiply, num.int.divide]
+
+  - id: num.frac_dec.convert
+    title: Convert between fractions and decimals
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N10
+    prereqs: [num.frac.notation, num.dec.pv, num.int.divide]
+
+  - id: num.recurring_dec
+    title: Recognise terminating and recurring decimals
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N10
+    prereqs: [num.frac_dec.convert]
+
+  # percentages
+  - id: num.pct.meaning
+    title: Percentage as parts per hundred
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N12
+    prereqs: [num.frac.notation, num.dec.pv]
+
+  - id: num.pct.convert
+    title: Convert between fractions, decimals and percentages
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N12
+    prereqs: [num.pct.meaning, num.frac_dec.convert]
+
+  - id: num.pct.of_amount
+    title: Find a percentage of an amount
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: R9
+    prereqs: [num.pct.convert, num.dec.multiply]
+
+  # rounding and approximation
+  - id: num.round.dp
+    title: Round to a given number of decimal places
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N15
+    prereqs: [num.dec.pv]
+
+  - id: num.round.sf
+    title: Round to a given number of significant figures
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N15
+    prereqs: [num.round.dp, num.pv.integers]
+
+  - id: num.estimate
+    title: Estimate a calculation by rounding
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N14
+    prereqs: [num.round.sf, num.order_of_ops]
+
+  - id: num.bounds
+    title: Upper and lower bounds of a rounded value
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N16
+    prereqs: [num.round.dp, num.round.sf]
+
+  # indices and roots
+  - id: num.powers.notation
+    title: Index notation for powers
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N6
+    prereqs: [num.int.multiply]
+
+  - id: num.squares
+    title: Square numbers and square roots
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N6
+    prereqs: [num.powers.notation]
+
+  - id: num.cubes
+    title: Cube numbers and cube roots
+    domain: number
+    key_stage: KS3
+    tier: foundation
+    spec_ref: N6
+    prereqs: [num.powers.notation]
+
+  - id: num.indices.laws
+    title: Laws of indices with positive powers
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N7
+    prereqs: [num.powers.notation, num.int.multiply, num.int.divide]
+
+  - id: num.indices.zero_neg
+    title: Zero and negative indices
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N7
+    prereqs: [num.indices.laws, num.frac.notation]
+
+  - id: num.standard_form
+    title: Standard form
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N9
+    prereqs: [num.indices.zero_neg, num.dec.pv, num.round.sf]
+
+  - id: num.standard_form.calc
+    title: Calculate with numbers in standard form
+    domain: number
+    key_stage: KS4
+    tier: foundation
+    spec_ref: N9
+    prereqs: [num.standard_form, num.indices.laws]
+
+  - id: num.surds
+    title: Simplify surds
+    domain: number
+    key_stage: KS4
+    tier: higher
+    spec_ref: N8
+    prereqs: [num.squares, num.indices.laws]
+
+  # ──────────────────────────────────────────────────────────────────────
+  # ALGEBRA
+  # ──────────────────────────────────────────────────────────────────────
+
+  - id: alg.notation
+    title: Algebraic notation
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A1
+    prereqs: [num.int.multiply, num.powers.notation]
+
+  - id: alg.substitute
+    title: Substitute numbers into expressions and formulae
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A2
+    prereqs: [alg.notation, num.order_of_ops, num.neg.mul_div]
+
+  - id: alg.collect_like_terms
+    title: Collect like terms
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A4
+    prereqs: [alg.notation, num.neg.add_sub]
+
+  - id: alg.expand.single
+    title: Expand a single bracket
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A4
+    prereqs: [alg.notation, num.neg.mul_div]
+
+  - id: alg.factorise.common
+    title: Factorise by taking out a common factor
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A4
+    prereqs: [alg.expand.single, num.hcf]
+
+  - id: alg.expand.double
+    title: Expand two brackets
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A4
+    prereqs: [alg.expand.single, alg.collect_like_terms]
+
+  - id: alg.factorise.quadratic
+    title: Factorise a quadratic where the coefficient of x squared is 1
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A4
+    prereqs: [alg.expand.double, alg.factorise.common, num.factors]
+
+  - id: alg.indices
+    title: Laws of indices with algebraic terms
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A4
+    prereqs: [alg.notation, num.indices.laws]
+
+  - id: alg.eq.one_step
+    title: Solve one-step linear equations
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A17
+    prereqs: [alg.notation, num.neg.add_sub, num.neg.mul_div]
+
+  - id: alg.eq.two_step
+    title: Solve two-step linear equations
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A17
+    prereqs: [alg.eq.one_step]
+
+  - id: alg.eq.brackets
+    title: Solve equations containing brackets
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A17
+    prereqs: [alg.eq.two_step, alg.expand.single]
+
+  - id: alg.eq.unknowns_both_sides
+    title: Solve equations with the unknown on both sides
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A17
+    prereqs: [alg.eq.two_step, alg.collect_like_terms]
+
+  - id: alg.eq.fractions
+    title: Solve equations containing fractions
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A17
+    prereqs: [alg.eq.unknowns_both_sides, num.frac.multiply]
+
+  - id: alg.form_equations
+    title: Form an equation from a worded context
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A21
+    prereqs: [alg.eq.two_step, alg.notation]
+
+  - id: alg.rearrange.formulae
+    title: Rearrange a formula to change the subject
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A5
+    prereqs: [alg.eq.unknowns_both_sides, alg.substitute]
+
+  - id: alg.quadratic.solve_factorising
+    title: Solve a quadratic equation by factorising
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A18
+    prereqs: [alg.factorise.quadratic, alg.eq.two_step]
+
+  - id: alg.ineq.number_line
+    title: Represent inequalities on a number line
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A22
+    prereqs: [num.order.integers, alg.notation]
+
+  - id: alg.ineq.solve_linear
+    title: Solve linear inequalities
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A22
+    prereqs: [alg.ineq.number_line, alg.eq.two_step]
+
+  - id: alg.ineq.integer_solutions
+    title: List integer solutions of an inequality
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A22
+    prereqs: [alg.ineq.solve_linear]
+
+  # sequences
+  - id: alg.seq.term_to_term
+    title: Continue a sequence using a term-to-term rule
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A23
+    prereqs: [num.neg.add_sub, num.int.multiply]
+
+  - id: alg.seq.special
+    title: Recognise square, triangular, cube and Fibonacci sequences
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A24
+    prereqs: [alg.seq.term_to_term, num.squares, num.cubes]
+
+  - id: alg.seq.nth_term_linear
+    title: Find the nth term of a linear sequence
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A25
+    prereqs: [alg.seq.term_to_term, alg.notation, alg.substitute]
+
+  - id: alg.seq.use_nth_term
+    title: Use the nth term to find a term or test membership
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A25
+    prereqs: [alg.seq.nth_term_linear, alg.eq.two_step]
+
+  # graphs
+  - id: alg.coordinates
+    title: Coordinates in four quadrants
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A8
+    prereqs: [num.order.integers, num.neg.add_sub]
+
+  - id: alg.function_machines
+    title: Use function machines
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A7
+    prereqs: [alg.substitute]
+
+  - id: alg.graph.table_of_values
+    title: Complete a table of values for a linear function
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A9
+    prereqs: [alg.substitute, alg.coordinates]
+
+  - id: alg.graph.plot_linear
+    title: Plot a straight-line graph
+    domain: algebra
+    key_stage: KS3
+    tier: foundation
+    spec_ref: A9
+    prereqs: [alg.graph.table_of_values]
+
+  - id: alg.graph.gradient
+    title: Find the gradient of a straight line
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A10
+    prereqs: [alg.graph.plot_linear, num.frac.notation, num.neg.mul_div]
+
+  - id: alg.graph.intercept
+    title: Identify the y-intercept of a straight line
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A10
+    prereqs: [alg.graph.plot_linear]
+
+  - id: alg.graph.y_mx_c
+    title: Interpret y = mx + c
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A10
+    prereqs: [alg.graph.gradient, alg.graph.intercept]
+
+  - id: alg.graph.find_equation
+    title: Find the equation of a straight line
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A10
+    prereqs: [alg.graph.y_mx_c, alg.rearrange.formulae]
+
+  - id: alg.graph.parallel
+    title: Recognise parallel lines from their equations
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A10
+    prereqs: [alg.graph.y_mx_c]
+
+  - id: alg.graph.quadratic
+    title: Plot and recognise a quadratic graph
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A12
+    prereqs: [alg.graph.table_of_values, num.squares, num.neg.mul_div]
+
+  - id: alg.graph.quadratic_roots
+    title: Read roots and the turning point from a quadratic graph
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A11
+    prereqs: [alg.graph.quadratic, alg.quadratic.solve_factorising]
+
+  - id: alg.simultaneous.graphical
+    title: Solve simultaneous equations graphically
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A19
+    prereqs: [alg.graph.plot_linear, alg.graph.y_mx_c]
+
+  - id: alg.simultaneous.elimination
+    title: Solve simultaneous linear equations algebraically
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A19
+    prereqs: [alg.eq.unknowns_both_sides, alg.substitute, alg.collect_like_terms]
+
+  - id: alg.graph.real_life
+    title: Interpret real-life graphs
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A14
+    prereqs: [alg.graph.plot_linear, alg.graph.gradient]
+
+  - id: alg.graph.distance_time
+    title: Interpret distance-time graphs
+    domain: algebra
+    key_stage: KS4
+    tier: foundation
+    spec_ref: A15
+    prereqs: [alg.graph.real_life, ratio.compound_units]
+
+  # ──────────────────────────────────────────────────────────────────────
+  # RATIO, PROPORTION AND RATES OF CHANGE
+  # ──────────────────────────────────────────────────────────────────────
+
+  - id: ratio.units.metric
+    title: Convert between metric units
+    domain: ratio
+    key_stage: KS3
+    tier: foundation
+    spec_ref: R1
+    prereqs: [num.dec.multiply, num.dec.divide]
+
+  - id: ratio.units.time
+    title: Convert between units of time
+    domain: ratio
+    key_stage: KS2
+    tier: foundation
+    spec_ref: R1
+    prereqs: [num.int.multiply, num.int.divide]
+
+  - id: ratio.units.area_volume
+    title: Convert between units of area and volume
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R1
+    prereqs: [ratio.units.metric, num.squares, num.cubes]
+
+  - id: ratio.compound_units
+    title: Use compound units such as speed and density
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R11
+    prereqs: [ratio.units.metric, ratio.units.time, alg.rearrange.formulae]
+
+  - id: ratio.notation
+    title: Ratio notation
+    domain: ratio
+    key_stage: KS3
+    tier: foundation
+    spec_ref: R4
+    prereqs: [num.frac.notation]
+
+  - id: ratio.simplify
+    title: Simplify a ratio
+    domain: ratio
+    key_stage: KS3
+    tier: foundation
+    spec_ref: R4
+    prereqs: [ratio.notation, num.hcf]
+
+  - id: ratio.share
+    title: Divide a quantity in a given ratio
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R6
+    prereqs: [ratio.notation, num.frac.of_amount, num.int.divide]
+
+  - id: ratio.to_fraction
+    title: Express a ratio as a fraction or as a linear function
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R8
+    prereqs: [ratio.notation, num.frac.notation, alg.notation]
+
+  - id: ratio.unitary
+    title: Unitary method and best-value problems
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R5
+    prereqs: [ratio.notation, num.dec.divide]
+
+  - id: ratio.direct_proportion
+    title: Direct proportion
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R10
+    prereqs: [ratio.unitary, alg.graph.y_mx_c]
+
+  - id: ratio.inverse_proportion
+    title: Inverse proportion
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R10
+    prereqs: [ratio.direct_proportion, num.frac.divide]
+
+  - id: ratio.scale_drawings
+    title: Scale drawings and maps
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R2
+    prereqs: [ratio.simplify, ratio.units.metric]
+
+  - id: ratio.pct.increase_decrease
+    title: Percentage increase and decrease
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R9
+    prereqs: [num.pct.of_amount, num.pct.convert]
+
+  - id: ratio.pct.multiplier
+    title: Use a decimal multiplier for percentage change
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R9
+    prereqs: [ratio.pct.increase_decrease, num.dec.multiply]
+
+  - id: ratio.pct.change
+    title: Express a change as a percentage
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R9
+    prereqs: [ratio.pct.increase_decrease, num.frac_dec.convert]
+
+  - id: ratio.pct.reverse
+    title: Reverse percentage problems
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R9
+    prereqs: [ratio.pct.multiplier, alg.eq.one_step]
+
+  - id: ratio.simple_interest
+    title: Simple interest
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R9
+    prereqs: [num.pct.of_amount, num.int.multiply]
+
+  - id: ratio.compound_interest
+    title: Compound interest and depreciation
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R16
+    prereqs: [ratio.pct.multiplier, num.indices.laws]
+
+  - id: ratio.growth_decay
+    title: Growth and decay problems
+    domain: ratio
+    key_stage: KS4
+    tier: foundation
+    spec_ref: R16
+    prereqs: [ratio.compound_interest]
+
+  # ──────────────────────────────────────────────────────────────────────
+  # GEOMETRY AND MEASURES
+  # ──────────────────────────────────────────────────────────────────────
+
+  - id: geo.angles.measure
+    title: Measure and draw angles
+    domain: geometry
+    key_stage: KS2
+    tier: foundation
+    spec_ref: null
+    prereqs: []
+
+  - id: geo.angles.types
+    title: Name acute, obtuse, reflex and right angles
+    domain: geometry
+    key_stage: KS2
+    tier: foundation
+    spec_ref: null
+    prereqs: [geo.angles.measure]
+
+  - id: geo.angles.line_point
+    title: Angles on a straight line and at a point
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G3
+    prereqs: [geo.angles.types, num.int.add_sub]
+
+  - id: geo.angles.vertically_opposite
+    title: Vertically opposite angles
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G3
+    prereqs: [geo.angles.line_point]
+
+  - id: geo.angles.triangle
+    title: Angles in a triangle
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G3
+    prereqs: [geo.angles.line_point]
+
+  - id: geo.angles.quadrilateral
+    title: Angles in a quadrilateral
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G3
+    prereqs: [geo.angles.triangle]
+
+  - id: geo.angles.parallel
+    title: Alternate, corresponding and co-interior angles
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G3
+    prereqs: [geo.angles.vertically_opposite, geo.angles.line_point]
+
+  - id: geo.polygon.interior
+    title: Interior angles of a polygon
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G3
+    prereqs: [geo.angles.triangle, geo.angles.quadrilateral]
+
+  - id: geo.polygon.exterior
+    title: Exterior angles of a polygon
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G3
+    prereqs: [geo.polygon.interior, geo.angles.line_point]
+
+  - id: geo.angles.reasoning
+    title: Multi-step angle reasoning with written justification
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G3
+    prereqs: [geo.angles.parallel, geo.polygon.exterior, geo.angles.quadrilateral]
+
+  - id: geo.triangle.properties
+    title: Properties of special triangles
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G4
+    prereqs: [geo.angles.triangle]
+
+  - id: geo.quad.properties
+    title: Properties of special quadrilaterals
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G4
+    prereqs: [geo.angles.quadrilateral]
+
+  - id: geo.circle.parts
+    title: Name the parts of a circle
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G9
+    prereqs: []
+
+  - id: geo.symmetry
+    title: Lines of symmetry and rotational symmetry
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G1
+    prereqs: [geo.quad.properties, geo.triangle.properties]
+
+  - id: geo.congruence
+    title: Recognise congruent shapes
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G5
+    prereqs: [geo.triangle.properties, geo.quad.properties]
+
+  - id: geo.similar.length
+    title: Similar shapes and missing lengths
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G19
+    prereqs: [geo.congruence, ratio.simplify, ratio.unitary]
+
+  # mensuration
+  - id: geo.perimeter
+    title: Perimeter of a 2D shape
+    domain: geometry
+    key_stage: KS2
+    tier: foundation
+    spec_ref: G17
+    prereqs: [num.int.add_sub]
+
+  - id: geo.area.rectangle
+    title: Area of a rectangle
+    domain: geometry
+    key_stage: KS2
+    tier: foundation
+    spec_ref: G16
+    prereqs: [num.int.multiply]
+
+  - id: geo.area.triangle
+    title: Area of a triangle
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G16
+    prereqs: [geo.area.rectangle, num.frac.of_amount]
+
+  - id: geo.area.parallelogram
+    title: Area of a parallelogram
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G16
+    prereqs: [geo.area.rectangle, geo.quad.properties]
+
+  - id: geo.area.trapezium
+    title: Area of a trapezium
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G16
+    prereqs: [geo.area.parallelogram, geo.area.triangle, alg.substitute]
+
+  - id: geo.area.compound
+    title: Area and perimeter of compound shapes
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G17
+    prereqs: [geo.area.trapezium, geo.perimeter, geo.area.triangle]
+
+  - id: geo.circle.circumference
+    title: Circumference of a circle
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G17
+    prereqs: [geo.circle.parts, num.dec.multiply, alg.substitute]
+
+  - id: geo.circle.area
+    title: Area of a circle
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G17
+    prereqs: [geo.circle.parts, num.squares, alg.substitute]
+
+  - id: geo.circle.arc_sector
+    title: Arc length and sector area
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G18
+    prereqs: [geo.circle.circumference, geo.circle.area, num.frac.of_amount]
+
+  - id: geo.3d.properties
+    title: Properties of 3D solids
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G12
+    prereqs: [geo.quad.properties]
+
+  - id: geo.nets
+    title: Nets of 3D solids
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G13
+    prereqs: [geo.3d.properties]
+
+  - id: geo.plans_elevations
+    title: Plans and elevations
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G13
+    prereqs: [geo.3d.properties, geo.nets]
+
+  - id: geo.volume.cuboid
+    title: Volume of a cuboid
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G16
+    prereqs: [geo.area.rectangle, geo.3d.properties]
+
+  - id: geo.volume.prism
+    title: Volume of a prism
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G16
+    prereqs: [geo.volume.cuboid, geo.area.compound]
+
+  - id: geo.volume.cylinder
+    title: Volume of a cylinder
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G17
+    prereqs: [geo.volume.prism, geo.circle.area]
+
+  - id: geo.volume.cone_sphere
+    title: Volume of a cone, pyramid and sphere using given formulae
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G17
+    prereqs: [geo.volume.cylinder, alg.substitute]
+
+  - id: geo.surface_area
+    title: Surface area of prisms and cylinders
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G16
+    prereqs: [geo.nets, geo.area.compound, geo.circle.area]
+
+  # Pythagoras and trigonometry
+  - id: geo.pythagoras.hypotenuse
+    title: Find the hypotenuse using Pythagoras' theorem
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G20
+    prereqs: [num.squares, geo.triangle.properties, alg.substitute]
+
+  - id: geo.pythagoras.shorter_side
+    title: Find a shorter side using Pythagoras' theorem
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G20
+    prereqs: [geo.pythagoras.hypotenuse, alg.rearrange.formulae]
+
+  - id: geo.trig.labelling
+    title: Label the sides of a right-angled triangle
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G20
+    prereqs: [geo.triangle.properties, geo.angles.types]
+
+  - id: geo.trig.find_side
+    title: Find a missing side using sine, cosine or tangent
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G20
+    prereqs: [geo.trig.labelling, alg.rearrange.formulae, num.round.dp]
+
+  - id: geo.trig.find_angle
+    title: Find a missing angle using inverse trigonometric functions
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G20
+    prereqs: [geo.trig.find_side]
+
+  - id: geo.trig.exact_values
+    title: Exact trigonometric values for common angles
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G21
+    prereqs: [geo.trig.find_side, num.frac.notation]
+
+  # transformations, constructions, vectors
+  - id: geo.transform.translation
+    title: Translate a shape by a vector
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G7
+    prereqs: [alg.coordinates]
+
+  - id: geo.transform.reflection
+    title: Reflect a shape in a mirror line
+    domain: geometry
+    key_stage: KS3
+    tier: foundation
+    spec_ref: G7
+    prereqs: [alg.coordinates, geo.symmetry]
+
+  - id: geo.transform.rotation
+    title: Rotate a shape about a point
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G7
+    prereqs: [alg.coordinates, geo.angles.measure, geo.symmetry]
+
+  - id: geo.transform.enlargement
+    title: Enlarge a shape by a positive scale factor
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G7
+    prereqs: [alg.coordinates, geo.similar.length]
+
+  - id: geo.transform.describe
+    title: Describe a single transformation fully
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G8
+    prereqs: [geo.transform.rotation, geo.transform.reflection, geo.transform.enlargement, geo.transform.translation]
+
+  - id: geo.vectors.column
+    title: Column vectors and vector arithmetic
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G25
+    prereqs: [geo.transform.translation, num.neg.add_sub]
+
+  - id: geo.construct.perpendicular_bisector
+    title: Construct a perpendicular bisector
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G2
+    prereqs: [geo.angles.measure]
+
+  - id: geo.construct.angle_bisector
+    title: Construct an angle bisector
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G2
+    prereqs: [geo.construct.perpendicular_bisector]
+
+  - id: geo.loci
+    title: Loci problems
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G2
+    prereqs: [geo.construct.angle_bisector, geo.circle.parts]
+
+  - id: geo.bearings
+    title: Bearings
+    domain: geometry
+    key_stage: KS4
+    tier: foundation
+    spec_ref: G15
+    prereqs: [geo.angles.measure, geo.angles.parallel]
+
+  # ──────────────────────────────────────────────────────────────────────
+  # PROBABILITY
+  # ──────────────────────────────────────────────────────────────────────
+
+  - id: prob.language
+    title: Probability language and the probability scale
+    domain: probability
+    key_stage: KS3
+    tier: foundation
+    spec_ref: P1
+    prereqs: [num.frac.notation, num.dec.order]
+
+  - id: prob.single_event
+    title: Probability of a single event
+    domain: probability
+    key_stage: KS3
+    tier: foundation
+    spec_ref: P4
+    prereqs: [prob.language, num.frac.simplify]
+
+  - id: prob.sums_to_one
+    title: Probabilities of exhaustive outcomes sum to 1
+    domain: probability
+    key_stage: KS3
+    tier: foundation
+    spec_ref: P4
+    prereqs: [prob.single_event, num.frac.add_sub_same]
+
+  - id: prob.mutually_exclusive
+    title: Mutually exclusive events
+    domain: probability
+    key_stage: KS4
+    tier: foundation
+    spec_ref: P7
+    prereqs: [prob.sums_to_one, num.frac.add_sub_diff]
+
+  - id: prob.relative_frequency
+    title: Relative frequency and experimental probability
+    domain: probability
+    key_stage: KS4
+    tier: foundation
+    spec_ref: P2
+    prereqs: [prob.single_event, num.frac_dec.convert]
+
+  - id: prob.expected_outcomes
+    title: Expected number of outcomes
+    domain: probability
+    key_stage: KS4
+    tier: foundation
+    spec_ref: P3
+    prereqs: [prob.single_event, num.frac.of_amount]
+
+  - id: prob.sample_space
+    title: Sample space diagrams
+    domain: probability
+    key_stage: KS4
+    tier: foundation
+    spec_ref: P7
+    prereqs: [prob.single_event]
+
+  - id: prob.two_way_tables
+    title: Two-way tables
+    domain: probability
+    key_stage: KS4
+    tier: foundation
+    spec_ref: P6
+    prereqs: [prob.single_event, stats.frequency_tables]
+
+  - id: prob.venn
+    title: Venn diagrams and set notation
+    domain: probability
+    key_stage: KS4
+    tier: foundation
+    spec_ref: P6
+    prereqs: [prob.sample_space, prob.mutually_exclusive]
+
+  - id: prob.tree_diagrams
+    title: Tree diagrams for independent events
+    domain: probability
+    key_stage: KS4
+    tier: foundation
+    spec_ref: P8
+    prereqs: [prob.sample_space, num.frac.multiply, prob.mutually_exclusive]
+
+  # ──────────────────────────────────────────────────────────────────────
+  # STATISTICS
+  # ──────────────────────────────────────────────────────────────────────
+
+  - id: stats.data_types
+    title: Discrete, continuous and categorical data
+    domain: statistics
+    key_stage: KS3
+    tier: foundation
+    spec_ref: S2
+    prereqs: []
+
+  - id: stats.frequency_tables
+    title: Tally charts and frequency tables
+    domain: statistics
+    key_stage: KS2
+    tier: foundation
+    spec_ref: S2
+    prereqs: [num.int.add_sub]
+
+  - id: stats.bar_charts
+    title: Draw and interpret bar charts
+    domain: statistics
+    key_stage: KS2
+    tier: foundation
+    spec_ref: S2
+    prereqs: [stats.frequency_tables]
+
+  - id: stats.pictograms
+    title: Draw and interpret pictograms
+    domain: statistics
+    key_stage: KS2
+    tier: foundation
+    spec_ref: S2
+    prereqs: [stats.frequency_tables, num.frac.of_amount]
+
+  - id: stats.pie_charts
+    title: Draw and interpret pie charts
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S2
+    prereqs: [stats.frequency_tables, geo.angles.measure, num.frac.of_amount]
+
+  - id: stats.time_series
+    title: Draw and interpret time series graphs
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S2
+    prereqs: [alg.coordinates, stats.bar_charts]
+
+  - id: stats.mean
+    title: Calculate the mean
+    domain: statistics
+    key_stage: KS3
+    tier: foundation
+    spec_ref: S4
+    prereqs: [num.int.add_sub, num.int.divide]
+
+  - id: stats.median
+    title: Find the median
+    domain: statistics
+    key_stage: KS3
+    tier: foundation
+    spec_ref: S4
+    prereqs: [num.order.integers]
+
+  - id: stats.mode
+    title: Find the mode
+    domain: statistics
+    key_stage: KS3
+    tier: foundation
+    spec_ref: S4
+    prereqs: [stats.frequency_tables]
+
+  - id: stats.range
+    title: Find the range
+    domain: statistics
+    key_stage: KS3
+    tier: foundation
+    spec_ref: S4
+    prereqs: [num.order.integers, num.int.add_sub]
+
+  - id: stats.averages.choose
+    title: Choose an appropriate average
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S4
+    prereqs: [stats.mean, stats.median, stats.mode]
+
+  - id: stats.mean.reverse
+    title: Work backwards from a mean to a missing value
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S4
+    prereqs: [stats.mean, alg.eq.two_step]
+
+  - id: stats.mean.frequency_table
+    title: Calculate the mean from a frequency table
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S4
+    prereqs: [stats.mean, stats.frequency_tables, num.int.multiply]
+
+  - id: stats.grouped.modal_class
+    title: Identify the modal class of grouped data
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S3
+    prereqs: [stats.mode, stats.frequency_tables]
+
+  - id: stats.grouped.estimate_mean
+    title: Estimate the mean of grouped data using midpoints
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S4
+    prereqs: [stats.mean.frequency_table, stats.grouped.modal_class]
+
+  - id: stats.scatter_graphs
+    title: Draw and interpret scatter graphs
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S6
+    prereqs: [alg.coordinates, stats.data_types]
+
+  - id: stats.correlation
+    title: Describe correlation
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S6
+    prereqs: [stats.scatter_graphs]
+
+  - id: stats.line_of_best_fit
+    title: Draw and use a line of best fit
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S6
+    prereqs: [stats.correlation, alg.graph.gradient]
+
+  - id: stats.sampling
+    title: Populations, samples and bias
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S1
+    prereqs: [stats.data_types]
+
+  - id: stats.compare_distributions
+    title: Compare two distributions using an average and a measure of spread
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S4
+    prereqs: [stats.averages.choose, stats.range]
+
+  - id: stats.misleading_graphs
+    title: Recognise misleading graphs
+    domain: statistics
+    key_stage: KS4
+    tier: foundation
+    spec_ref: S2
+    prereqs: [stats.bar_charts, stats.time_series]
