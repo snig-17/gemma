@@ -1,7 +1,8 @@
 # Design — coverage-aware adaptive learning platform (GCSE)
 
-**Status:** design. The skill graph in `curriculum/` is built and validated;
-everything else is unimplemented.
+**Status:** design. The skill graph in `curriculum/` and the item bank in
+`items/` are built and validated; the learner model, diagnostic, selection
+policy and surfaces are unimplemented.
 
 **Scope note.** This specifies a *new* product and does not describe the Swift app in this repository. The iOS app at the repo root is the hackathon artifact — see `CODE_REVIEW.md`. Two ideas carry forward from it: photographed work as the primary input, and Socratic tutoring that withholds answers. Everything else here is new.
 
@@ -475,7 +476,7 @@ Shippable in a term by one person, and contains the whole loop.
    `curriculum/validate.py`, loadable via `curriculum/to_sql.py`. Outstanding:
    the `spec_ref` values are unverified against the DfE document.
 2. **Import the Eedi graph**, map to skills, settle attribution. Blocked on the licence checklist in §2.
-3. **Item generation + symbolic verification.** Nothing works without verified items, and this is the long pole.
+3. ~~**Item generation + symbolic verification.**~~ **Partly done** — 55 templates over 48 of 183 skills in `items/`, with 66 misconceptions and independent verification. Key correction to §3.6: a misconception is implemented as an *executable transformation*, so distractors are built by running the error and need no LLM. Outstanding: diagram items, free-text reasoning, multi-mark method marks, and difficulty calibration (`difficulty_b` is 0 for everything until real responses calibrate it, so the paper assembly in §3.7 cannot yet hit its target score band).
 4. **`attempt` logging and the evaluation harness** — before the model, so there is never a period of flying blind.
 5. **Elo mastery model**, check against the three baselines.
 6. **Diagnostic** using graph pruning.
